@@ -1,0 +1,20 @@
+# WP AI Post Generator
+
+Arquivos temporários e de sistema
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+debug.log
+
+# Node (se houver)
+node_modules/
+
+# Composer (se houver)
+vendor/
