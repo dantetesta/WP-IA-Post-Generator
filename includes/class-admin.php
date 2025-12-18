@@ -409,48 +409,55 @@ class WPAI_Admin
     {
         global $wpdb;
         
-        // Lista de meta keys internas do WordPress para ignorar
-        $excluded_keys = [
-            '_edit_lock', '_edit_last', '_wp_page_template', '_wp_trash_meta_status',
-            '_wp_trash_meta_time', '_wp_desired_post_slug', '_thumbnail_id',
-            '_wp_attached_file', '_wp_attachment_metadata', '_menu_item_type',
-            '_menu_item_menu_item_parent', '_menu_item_object_id', '_menu_item_object',
-            '_menu_item_target', '_menu_item_classes', '_menu_item_xfn', '_menu_item_url',
-            '_pingme', '_encloseme', '_trackbackme', '_wp_old_slug', '_wp_old_date',
-            '_oembed_', '_transient_', 'rank_math_', '_yoast_', '_aioseo_'
+        // Prefixos de meta keys internas do WordPress para ignorar
+        $excluded_prefixes = [
+            '_edit_lock', '_edit_last', '_wp_page_template', '_wp_trash_',
+            '_wp_desired_post_slug', '_thumbnail_id', '_wp_attached_file',
+            '_wp_attachment_metadata', '_menu_item_', '_pingme', '_encloseme',
+            '_trackbackme', '_wp_old_slug', '_wp_old_date', '_oembed_',
+            '_transient_', 'rank_math_', '_yoast_', '_aioseo_', '_elementor_',
+            '_wpml_', '_icl_', 'wpcf-', '_wc_', '_billing_', '_shipping_',
+            '_order_', '_customer_', '_product_', '_stock_', '_price',
+            '_sku', '_virtual', '_downloadable', '_sold_individually'
         ];
         
+        // Busca todas as meta keys do post type (sem filtrar por underscore)
         $query = $wpdb->prepare("
             SELECT DISTINCT pm.meta_key 
             FROM {$wpdb->postmeta} pm
             INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
             WHERE p.post_type = %s
-            AND pm.meta_key NOT LIKE %s
-            AND pm.meta_key NOT LIKE %s
-            AND pm.meta_key NOT LIKE %s
-            AND pm.meta_key NOT LIKE %s
-            AND pm.meta_key NOT LIKE %s
-            LIMIT 50
-        ", $post_type, '\_%', 'rank_math%', '_yoast%', '_aioseo%', '_oembed%');
+            AND pm.meta_key != ''
+            ORDER BY pm.meta_key ASC
+            LIMIT 100
+        ", $post_type);
         
         $results = $wpdb->get_col($query);
         
-        // Filtra resultados adicionais
+        // Filtra meta keys internas
         $filtered = [];
         foreach ($results as $key) {
+            if (empty($key)) continue;
+            
             $skip = false;
-            foreach ($excluded_keys as $excluded) {
-                if (strpos($key, $excluded) === 0) {
+            foreach ($excluded_prefixes as $prefix) {
+                if (strpos($key, $prefix) === 0) {
                     $skip = true;
                     break;
                 }
             }
-            if (!$skip && !empty($key)) {
+            
+            // Ignora meta keys que são referências internas do ACF (começam com _ e têm field_)
+            if (!$skip && strpos($key, '_') === 0 && strpos($key, 'field_') !== false) {
+                $skip = true;
+            }
+            
+            if (!$skip) {
                 $filtered[] = $key;
             }
         }
         
-        return $filtered;
+        return array_slice($filtered, 0, 50);
     }
 
     // Retorna os mapeamentos salvos para um post type
