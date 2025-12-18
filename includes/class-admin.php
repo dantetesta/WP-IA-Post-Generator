@@ -44,6 +44,194 @@ class WPAI_Admin
             'dashicons-edit-large',
             30
         );
+
+        // Submenu para mapeamento de campos
+        add_submenu_page(
+            'wp-ai-post-generator',
+            __('Mapeamento de Campos', 'wp-ai-post-generator'),
+            __('Mapeamento', 'wp-ai-post-generator'),
+            'manage_options',
+            'wpai-field-mapping',
+            [$this, 'render_mapping_page']
+        );
+    }
+
+    // Renderiza página de mapeamento de campos
+    public function render_mapping_page()
+    {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $post_type = isset($_GET['cpt']) ? sanitize_key($_GET['cpt']) : '';
+        $enabled_post_types = $this->get_enabled_post_types();
+
+        // Processa salvamento do formulário
+        if (isset($_POST['wpai_save_mappings']) && wp_verify_nonce($_POST['wpai_mapping_nonce'], 'wpai_save_mapping')) {
+            $this->save_mappings_from_form();
+        }
+
+        ?>
+        <div class="wrap wpai-settings-wrap">
+            <h1><span class="dashicons dashicons-randomize"></span> Mapeamento de Campos</h1>
+            <p>Configure como os campos gerados pela IA serão salvos nos seus Custom Post Types.</p>
+
+            <?php settings_errors('wpai_mapping'); ?>
+
+            <?php if (empty($enabled_post_types)): ?>
+                <div class="notice notice-warning">
+                    <p>Nenhum Post Type habilitado. <a href="<?php echo admin_url('admin.php?page=wp-ai-post-generator'); ?>">Configure os Post Types primeiro</a>.</p>
+                </div>
+            <?php else: ?>
+                
+                <!-- Seletor de CPT -->
+                <div class="wpai-mapping-selector" style="margin: 20px 0; padding: 20px; background: #fff; border: 1px solid #ccd0d4; border-radius: 4px;">
+                    <label for="wpai-cpt-select" style="font-weight: 600; margin-right: 10px;">Selecione o Post Type:</label>
+                    <select id="wpai-cpt-select" onchange="window.location.href='<?php echo admin_url('admin.php?page=wpai-field-mapping&cpt='); ?>'+this.value">
+                        <option value="">-- Escolha um Post Type --</option>
+                        <?php foreach ($enabled_post_types as $pt): 
+                            $pt_obj = get_post_type_object($pt);
+                            if (!$pt_obj) continue;
+                        ?>
+                            <option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>>
+                                <?php echo esc_html($pt_obj->labels->singular_name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <?php if (!empty($post_type) && post_type_exists($post_type)): 
+                    $pt_obj = get_post_type_object($post_type);
+                    $fields = $this->scan_post_type_fields($post_type);
+                    $mappings = $this->get_field_mappings($post_type);
+                    $generated_fields = $this->get_generated_fields();
+                ?>
+                    <div class="wpai-mapping-form" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 20px;">
+                        <h2 style="margin-top: 0;">
+                            <span class="dashicons dashicons-admin-post"></span>
+                            <?php echo esc_html($pt_obj->labels->singular_name); ?>
+                        </h2>
+                        
+                        <p style="color: #666;">
+                            Detectados: 
+                            <strong><?php echo count($fields['native']); ?></strong> campos nativos,
+                            <strong><?php echo count($fields['meta']); ?></strong> meta fields,
+                            <strong><?php echo count($fields['taxonomies']); ?></strong> taxonomias
+                        </p>
+
+                        <form method="post" action="">
+                            <?php wp_nonce_field('wpai_save_mapping', 'wpai_mapping_nonce'); ?>
+                            <input type="hidden" name="wpai_post_type" value="<?php echo esc_attr($post_type); ?>">
+                            
+                            <table class="widefat striped" style="margin-top: 15px;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%;">Campo Gerado pela IA</th>
+                                        <th style="width: 10%; text-align: center;">→</th>
+                                        <th style="width: 50%;">Salvar em</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($generated_fields as $gen_key => $gen_field): 
+                                        $saved_mapping = $mappings[$gen_key] ?? [];
+                                        $saved_value = '';
+                                        if (!empty($saved_mapping['type']) && !empty($saved_mapping['field'])) {
+                                            $saved_value = $saved_mapping['type'] . ':' . $saved_mapping['field'];
+                                        }
+                                    ?>
+                                        <tr>
+                                            <td>
+                                                <strong><?php echo esc_html($gen_field['label']); ?></strong><br>
+                                                <small style="color: #666;"><?php echo esc_html($gen_field['description']); ?></small>
+                                            </td>
+                                            <td style="text-align: center; font-size: 18px; color: #2271b1;">→</td>
+                                            <td>
+                                                <select name="mapping[<?php echo esc_attr($gen_key); ?>]" style="width: 100%; max-width: 400px;">
+                                                    <option value="">-- Não mapear --</option>
+                                                    
+                                                    <?php if (!empty($fields['native'])): ?>
+                                                        <optgroup label="📄 Campos Nativos">
+                                                            <?php foreach ($fields['native'] as $key => $field): ?>
+                                                                <option value="native:<?php echo esc_attr($key); ?>" <?php selected($saved_value, 'native:' . $key); ?>>
+                                                                    <?php echo esc_html($field['label']); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </optgroup>
+                                                    <?php endif; ?>
+
+                                                    <?php if (!empty($fields['meta'])): ?>
+                                                        <optgroup label="🔧 Meta Fields">
+                                                            <?php foreach ($fields['meta'] as $key => $field): ?>
+                                                                <option value="meta:<?php echo esc_attr($key); ?>" <?php selected($saved_value, 'meta:' . $key); ?>>
+                                                                    <?php echo esc_html($field['label']); ?> [<?php echo strtoupper($field['type']); ?>]
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </optgroup>
+                                                    <?php endif; ?>
+
+                                                    <?php if (!empty($fields['taxonomies'])): ?>
+                                                        <optgroup label="🏷️ Taxonomias">
+                                                            <?php foreach ($fields['taxonomies'] as $key => $tax): ?>
+                                                                <option value="taxonomy:<?php echo esc_attr($key); ?>" <?php selected($saved_value, 'taxonomy:' . $key); ?>>
+                                                                    <?php echo esc_html($tax['label']); ?>
+                                                                </option>
+                                                            <?php endforeach; ?>
+                                                        </optgroup>
+                                                    <?php endif; ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+
+                            <p style="margin-top: 20px;">
+                                <button type="submit" name="wpai_save_mappings" class="button button-primary button-large">
+                                    <span class="dashicons dashicons-saved" style="margin-top: 4px;"></span>
+                                    Salvar Mapeamento
+                                </button>
+                            </p>
+                        </form>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    // Salva mapeamentos do formulário
+    private function save_mappings_from_form()
+    {
+        $post_type = sanitize_key($_POST['wpai_post_type'] ?? '');
+        $mappings_raw = isset($_POST['mapping']) ? $_POST['mapping'] : [];
+
+        if (empty($post_type)) {
+            add_settings_error('wpai_mapping', 'invalid_pt', 'Post type inválido.', 'error');
+            return;
+        }
+
+        $sanitized_mappings = [];
+        foreach ($mappings_raw as $gen_field => $value) {
+            if (empty($value)) continue;
+            
+            $parts = explode(':', $value, 2);
+            if (count($parts) === 2) {
+                $sanitized_mappings[sanitize_key($gen_field)] = [
+                    'type' => sanitize_key($parts[0]),
+                    'field' => sanitize_text_field($parts[1])
+                ];
+            }
+        }
+
+        $settings = get_option('wpai_post_gen_settings', []);
+        if (!isset($settings['field_mappings'])) {
+            $settings['field_mappings'] = [];
+        }
+        $settings['field_mappings'][$post_type] = $sanitized_mappings;
+        
+        update_option('wpai_post_gen_settings', $settings);
+
+        add_settings_error('wpai_mapping', 'saved', 'Mapeamento salvo com sucesso!', 'success');
     }
 
     public function enqueue_scripts($hook)
@@ -657,12 +845,11 @@ class WPAI_Admin
                                                 <span class="wpai-pt-slug"><?php echo esc_html($pt_slug); ?></span>
                                             </span>
                                         </label>
-                                        <button type="button" class="wpai-pt-config-btn" 
-                                                data-pt="<?php echo esc_attr($pt_slug); ?>" 
-                                                data-label="<?php echo esc_attr($pt_label); ?>"
-                                                title="Configurar mapeamento de campos">
+                                        <a href="<?php echo admin_url('admin.php?page=wpai-field-mapping&cpt=' . $pt_slug); ?>" 
+                                           class="wpai-pt-config-btn"
+                                           title="Configurar mapeamento de campos">
                                             <span class="dashicons dashicons-admin-generic"></span>
-                                        </button>
+                                        </a>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
@@ -673,33 +860,6 @@ class WPAI_Admin
                             </p>
                         </div>
 
-                        <!-- Modal de Mapeamento de Campos -->
-                        <div class="wpai-mapping-modal" id="wpai-mapping-modal" style="display: none;">
-                            <div class="wpai-mapping-overlay"></div>
-                            <div class="wpai-mapping-content">
-                                <div class="wpai-mapping-header">
-                                    <h3><span class="dashicons dashicons-randomize"></span> Mapeamento de Campos: <span id="wpai-mapping-pt-name"></span></h3>
-                                    <button type="button" class="wpai-mapping-close">&times;</button>
-                                </div>
-                                <div class="wpai-mapping-body">
-                                    <p class="wpai-mapping-desc">Configure como os campos gerados pela IA serão salvos no seu CPT.</p>
-                                    
-                                    <div class="wpai-mapping-loading" id="wpai-mapping-loading">
-                                        <span class="dashicons dashicons-update wpai-spin"></span> Escaneando campos...
-                                    </div>
-                                    
-                                    <div class="wpai-mapping-grid" id="wpai-mapping-grid" style="display: none;">
-                                        <!-- Preenchido via JavaScript -->
-                                    </div>
-                                </div>
-                                <div class="wpai-mapping-footer">
-                                    <button type="button" class="wpai-btn-secondary" id="wpai-mapping-cancel">Cancelar</button>
-                                    <button type="button" class="wpai-btn-primary" id="wpai-mapping-save">
-                                        <span class="dashicons dashicons-saved"></span> Salvar Mapeamento
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
