@@ -60,33 +60,52 @@ class WPAI_Ajax_Handler
     // Salva mapeamentos de campos para um CPT
     public function save_field_mappings()
     {
+        // Log para debug
+        error_log('WPAI: save_field_mappings chamado');
+        error_log('WPAI: POST data: ' . print_r($_POST, true));
+
         check_ajax_referer('wpai_post_gen_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
+            error_log('WPAI: Permissão negada');
             wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
         }
 
         $post_type = sanitize_key($_POST['post_type'] ?? '');
         $mappings = isset($_POST['mappings']) ? $_POST['mappings'] : [];
         
+        error_log('WPAI: post_type = ' . $post_type);
+        error_log('WPAI: mappings recebidos = ' . print_r($mappings, true));
+
         if (empty($post_type)) {
             wp_send_json_error(['message' => __('Post type inválido.', 'wp-ai-post-generator')]);
         }
 
         // Sanitiza os mapeamentos
         $sanitized_mappings = [];
-        foreach ($mappings as $generated_field => $target) {
-            $gen_field = sanitize_key($generated_field);
-            $target_field = sanitize_text_field($target['field'] ?? '');
-            $target_type = sanitize_key($target['type'] ?? 'native');
-            
-            if (!empty($target_field)) {
-                $sanitized_mappings[$gen_field] = [
-                    'field' => $target_field,
-                    'type' => $target_type
-                ];
+        if (is_array($mappings)) {
+            foreach ($mappings as $generated_field => $target) {
+                $gen_field = sanitize_key($generated_field);
+                
+                // Verifica se target é array ou string
+                if (is_array($target)) {
+                    $target_field = sanitize_text_field($target['field'] ?? '');
+                    $target_type = sanitize_key($target['type'] ?? 'native');
+                } else {
+                    // Se for string, pula
+                    continue;
+                }
+                
+                if (!empty($target_field) && !empty($gen_field)) {
+                    $sanitized_mappings[$gen_field] = [
+                        'field' => $target_field,
+                        'type' => $target_type
+                    ];
+                }
             }
         }
+
+        error_log('WPAI: mappings sanitizados = ' . print_r($sanitized_mappings, true));
 
         // Salva nas configurações
         $settings = get_option('wpai_post_gen_settings', []);
@@ -95,11 +114,14 @@ class WPAI_Ajax_Handler
         }
         $settings['field_mappings'][$post_type] = $sanitized_mappings;
         
-        update_option('wpai_post_gen_settings', $settings);
+        $saved = update_option('wpai_post_gen_settings', $settings);
+        error_log('WPAI: update_option resultado = ' . ($saved ? 'true' : 'false'));
 
         wp_send_json_success([
             'message' => __('Mapeamentos salvos com sucesso!', 'wp-ai-post-generator'),
-            'mappings' => $sanitized_mappings
+            'mappings' => $sanitized_mappings,
+            'post_type' => $post_type,
+            'saved' => $saved
         ]);
     }
 
