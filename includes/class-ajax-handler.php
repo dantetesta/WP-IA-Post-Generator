@@ -25,6 +25,82 @@ class WPAI_Ajax_Handler
         add_action('wp_ajax_wpai_reveal_api_key', [$this, 'reveal_api_key']);
         add_action('wp_ajax_wpai_test_gemini', [$this, 'test_gemini']);
         add_action('wp_ajax_wpai_test_openrouter', [$this, 'test_openrouter']);
+        add_action('wp_ajax_wpai_scan_cpt_fields', [$this, 'scan_cpt_fields']);
+        add_action('wp_ajax_wpai_save_field_mappings', [$this, 'save_field_mappings']);
+    }
+
+    // Escaneia campos de um CPT para mapeamento
+    public function scan_cpt_fields()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $post_type = sanitize_key($_POST['post_type'] ?? '');
+        
+        if (empty($post_type) || !post_type_exists($post_type)) {
+            wp_send_json_error(['message' => __('Post type inválido.', 'wp-ai-post-generator')]);
+        }
+
+        $admin = new WPAI_Admin();
+        $fields = $admin->scan_post_type_fields($post_type);
+        $mappings = $admin->get_field_mappings($post_type);
+        $generated_fields = $admin->get_generated_fields();
+
+        wp_send_json_success([
+            'post_type' => $post_type,
+            'fields' => $fields,
+            'mappings' => $mappings,
+            'generated_fields' => $generated_fields
+        ]);
+    }
+
+    // Salva mapeamentos de campos para um CPT
+    public function save_field_mappings()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $post_type = sanitize_key($_POST['post_type'] ?? '');
+        $mappings = isset($_POST['mappings']) ? $_POST['mappings'] : [];
+        
+        if (empty($post_type)) {
+            wp_send_json_error(['message' => __('Post type inválido.', 'wp-ai-post-generator')]);
+        }
+
+        // Sanitiza os mapeamentos
+        $sanitized_mappings = [];
+        foreach ($mappings as $generated_field => $target) {
+            $gen_field = sanitize_key($generated_field);
+            $target_field = sanitize_text_field($target['field'] ?? '');
+            $target_type = sanitize_key($target['type'] ?? 'native');
+            
+            if (!empty($target_field)) {
+                $sanitized_mappings[$gen_field] = [
+                    'field' => $target_field,
+                    'type' => $target_type
+                ];
+            }
+        }
+
+        // Salva nas configurações
+        $settings = get_option('wpai_post_gen_settings', []);
+        if (!isset($settings['field_mappings'])) {
+            $settings['field_mappings'] = [];
+        }
+        $settings['field_mappings'][$post_type] = $sanitized_mappings;
+        
+        update_option('wpai_post_gen_settings', $settings);
+
+        wp_send_json_success([
+            'message' => __('Mapeamentos salvos com sucesso!', 'wp-ai-post-generator'),
+            'mappings' => $sanitized_mappings
+        ]);
     }
 
     // Revela a API key descriptografada (apenas para admins)
@@ -165,23 +241,56 @@ class WPAI_Ajax_Handler
             $post_type = 'post';
         }
 
-        if (empty($title) || empty($content)) {
-            wp_send_json_error(['message' => __('Título e conteúdo são obrigatórios.', 'wp-ai-post-generator')]);
-        }
+        // Carregar mapeamentos de campos para este post type
+        $field_mappings = $settings['field_mappings'][$post_type] ?? [];
+
+        // Preparar dados gerados pela IA
+        $generated_data = [
+            'title' => $title,
+            'content' => $content,
+            'excerpt' => sanitize_textarea_field($_POST['excerpt'] ?? ''),
+            'meta_title' => $seo_data['meta_title'] ?? '',
+            'meta_description' => $seo_data['meta_description'] ?? '',
+            'focus_keyword' => $seo_data['focus_keyword'] ?? '',
+            'secondary_keywords' => $seo_data['secondary_keywords'] ?? [],
+            'tags' => $tags,
+            'thumbnail' => $thumbnail_id
+        ];
 
         // Converter status
         $post_status = ($status === 'publish' || $status === 'Publicado') ? 'publish' : 'draft';
 
-        // Criar o post no tipo correto
+        // Iniciar dados do post com campos nativos ou mapeados
         $post_data = [
-            'post_title' => $title,
-            'post_content' => $content,
             'post_status' => $post_status,
             'post_type' => $post_type,
             'post_author' => get_current_user_id(),
         ];
 
-        // Adicionar categoria (apenas para post types que suportam)
+        // Aplicar mapeamentos para campos nativos do post
+        $title_mapped = $this->apply_native_mapping('title', $generated_data, $field_mappings, $post_data);
+        $content_mapped = $this->apply_native_mapping('content', $generated_data, $field_mappings, $post_data);
+        
+        // Se não mapeado, usar padrão
+        if (!$title_mapped) {
+            $post_data['post_title'] = $title;
+        }
+        if (!$content_mapped) {
+            $post_data['post_content'] = $content;
+        }
+
+        // Excerpt
+        $this->apply_native_mapping('excerpt', $generated_data, $field_mappings, $post_data);
+
+        // Verificar se tem pelo menos título
+        if (empty($post_data['post_title']) && empty($title)) {
+            wp_send_json_error(['message' => __('Título é obrigatório.', 'wp-ai-post-generator')]);
+        }
+        if (empty($post_data['post_title'])) {
+            $post_data['post_title'] = $title;
+        }
+
+        // Adicionar categoria (apenas para post types que suportam e sem mapeamento customizado)
         if ($category_id > 0 && is_object_in_taxonomy($post_type, 'category')) {
             $post_data['post_category'] = [$category_id];
         }
@@ -197,36 +306,45 @@ class WPAI_Ajax_Handler
             wp_set_post_tags($post_id, $tags, false);
         }
 
+        // Aplicar mapeamentos para meta fields
+        $this->apply_meta_mappings($post_id, $generated_data, $field_mappings);
+
+        // Aplicar mapeamentos para taxonomias customizadas
+        $this->apply_taxonomy_mappings($post_id, $generated_data, $field_mappings);
+
         // Extrair focus keyword para uso em SEO da imagem
-        $focus_keyword = '';
-        if (!empty($seo_data['focus_keyword'])) {
-            $focus_keyword = $seo_data['focus_keyword'];
-        }
+        $focus_keyword = $generated_data['focus_keyword'];
 
         // Definir thumbnail (ID ou base64)
-        if ($thumbnail_id > 0) {
-            set_post_thumbnail($post_id, $thumbnail_id);
-            // Atualizar alt e descricao da imagem existente
-            if (!empty($focus_keyword)) {
-                $this->update_attachment_seo($thumbnail_id, $title, $focus_keyword);
+        $thumbnail_mapping = $field_mappings['thumbnail'] ?? null;
+        if ($thumbnail_mapping && $thumbnail_mapping['type'] === 'meta') {
+            // Thumbnail mapeado para meta field
+            if ($thumbnail_id > 0) {
+                $this->save_to_meta_field($post_id, $thumbnail_mapping['field'], $thumbnail_id, 'acf');
             }
-        } elseif (!empty($_POST['thumbnail_base64'])) {
-            // Salvar thumbnail do base64 gerado pelo pipeline
-            $attach_id = $this->save_thumbnail_from_base64(
-                $_POST['thumbnail_base64'],
-                $_POST['thumbnail_mime'] ?? 'image/jpeg',
-                $title,
-                $post_id,
-                $focus_keyword
-            );
-            if ($attach_id && !is_wp_error($attach_id)) {
-                set_post_thumbnail($post_id, $attach_id);
+        } else {
+            // Thumbnail nativo
+            if ($thumbnail_id > 0) {
+                set_post_thumbnail($post_id, $thumbnail_id);
+                if (!empty($focus_keyword)) {
+                    $this->update_attachment_seo($thumbnail_id, $title, $focus_keyword);
+                }
+            } elseif (!empty($_POST['thumbnail_base64'])) {
+                $attach_id = $this->save_thumbnail_from_base64(
+                    $_POST['thumbnail_base64'],
+                    $_POST['thumbnail_mime'] ?? 'image/jpeg',
+                    $title,
+                    $post_id,
+                    $focus_keyword
+                );
+                if ($attach_id && !is_wp_error($attach_id)) {
+                    set_post_thumbnail($post_id, $attach_id);
+                }
             }
         }
 
-        // Salvar SEO (Rank Math)
+        // Salvar SEO (Rank Math) - apenas se não houver mapeamentos customizados
         if (!empty($seo_data) && class_exists('RankMath')) {
-            // Focus keyword + secondary keywords (total 5)
             $all_keywords = [];
             if (!empty($seo_data['focus_keyword'])) {
                 $all_keywords[] = sanitize_text_field($seo_data['focus_keyword']);
@@ -240,11 +358,9 @@ class WPAI_Ajax_Handler
                 update_post_meta($post_id, 'rank_math_focus_keyword', implode(',', $all_keywords));
             }
 
-            // SEO Title - usar meta_title do SEO agent ou titulo do post
-            $seo_title = !empty($seo_data['meta_title']) ? $seo_data['meta_title'] : (!empty($seo_data['seo_title']) ? $seo_data['seo_title'] : $title);
+            $seo_title = !empty($seo_data['meta_title']) ? $seo_data['meta_title'] : $title;
             update_post_meta($post_id, 'rank_math_title', sanitize_text_field($seo_title));
 
-            // Meta Description
             if (!empty($seo_data['meta_description'])) {
                 update_post_meta($post_id, 'rank_math_description', sanitize_text_field($seo_data['meta_description']));
             }
@@ -258,6 +374,109 @@ class WPAI_Ajax_Handler
             'edit_url' => get_edit_post_link($post_id, 'raw'),
             'view_url' => get_permalink($post_id),
         ]);
+    }
+
+    // Aplica mapeamento para campos nativos do post
+    private function apply_native_mapping($field_key, $generated_data, $mappings, &$post_data)
+    {
+        if (!isset($mappings[$field_key])) {
+            return false;
+        }
+
+        $mapping = $mappings[$field_key];
+        if ($mapping['type'] !== 'native') {
+            return false;
+        }
+
+        $value = $generated_data[$field_key] ?? '';
+        if (empty($value)) {
+            return false;
+        }
+
+        $native_fields = [
+            'title' => 'post_title',
+            'content' => 'post_content',
+            'excerpt' => 'post_excerpt'
+        ];
+
+        $target_field = $mapping['field'];
+        if (isset($native_fields[$target_field])) {
+            $post_data[$native_fields[$target_field]] = $value;
+            return true;
+        }
+
+        return false;
+    }
+
+    // Aplica mapeamentos para meta fields
+    private function apply_meta_mappings($post_id, $generated_data, $mappings)
+    {
+        foreach ($mappings as $gen_field => $mapping) {
+            if ($mapping['type'] !== 'meta') {
+                continue;
+            }
+
+            $value = $generated_data[$gen_field] ?? '';
+            if (empty($value)) {
+                continue;
+            }
+
+            // Converter array para string se necessário
+            if (is_array($value)) {
+                $value = implode(', ', $value);
+            }
+
+            $this->save_to_meta_field($post_id, $mapping['field'], $value, 'meta');
+        }
+    }
+
+    // Salva valor em meta field (compatível com ACF, Pods, Meta Box)
+    private function save_to_meta_field($post_id, $field_key, $value, $type = 'meta')
+    {
+        // ACF
+        if (function_exists('update_field')) {
+            update_field($field_key, $value, $post_id);
+            return;
+        }
+
+        // Pods
+        if (function_exists('pods')) {
+            $pod = pods(get_post_type($post_id), $post_id);
+            if ($pod && $pod->valid()) {
+                $pod->save([$field_key => $value]);
+                return;
+            }
+        }
+
+        // Meta Box ou padrão WP
+        update_post_meta($post_id, $field_key, $value);
+    }
+
+    // Aplica mapeamentos para taxonomias
+    private function apply_taxonomy_mappings($post_id, $generated_data, $mappings)
+    {
+        foreach ($mappings as $gen_field => $mapping) {
+            if ($mapping['type'] !== 'taxonomy') {
+                continue;
+            }
+
+            $value = $generated_data[$gen_field] ?? '';
+            if (empty($value)) {
+                continue;
+            }
+
+            $taxonomy = $mapping['field'];
+            
+            // Converter para array se for string
+            if (is_string($value)) {
+                $terms = array_map('trim', explode(',', $value));
+            } else {
+                $terms = (array) $value;
+            }
+
+            // Adicionar termos à taxonomia
+            wp_set_object_terms($post_id, $terms, $taxonomy, true);
+        }
     }
 
     /**

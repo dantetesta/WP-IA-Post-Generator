@@ -1039,6 +1039,255 @@
     }
 }
 
+/* Post Type Item Wrapper com botão de config */
+.wpai-post-type-item-wrapper {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+}
+
+.wpai-post-type-item-wrapper .wpai-post-type-item {
+    flex: 1;
+    border-radius: var(--stripe-radius-md) 0 0 var(--stripe-radius-md);
+}
+
+.wpai-pt-config-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    background: var(--stripe-surface);
+    border: 2px solid var(--stripe-border);
+    border-left: none;
+    border-radius: 0 var(--stripe-radius-md) var(--stripe-radius-md) 0;
+    cursor: pointer;
+    transition: var(--stripe-transition);
+    color: var(--stripe-text-muted);
+}
+
+.wpai-pt-config-btn:hover {
+    background: var(--stripe-primary);
+    border-color: var(--stripe-primary);
+    color: #fff;
+}
+
+.wpai-pt-config-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL DE MAPEAMENTO DE CAMPOS
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-mapping-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wpai-mapping-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+}
+
+.wpai-mapping-content {
+    position: relative;
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    background: var(--stripe-card);
+    border-radius: var(--stripe-radius-lg);
+    box-shadow: var(--stripe-shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wpai-mapping-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: #fff;
+}
+
+.wpai-mapping-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wpai-mapping-header h3 .dashicons {
+    opacity: 0.9;
+}
+
+.wpai-mapping-close {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    transition: var(--stripe-transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wpai-mapping-close:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.wpai-mapping-body {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.wpai-mapping-desc {
+    margin: 0 0 20px 0;
+    font-size: 14px;
+    color: var(--stripe-text-secondary);
+}
+
+.wpai-mapping-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px;
+    color: var(--stripe-text-secondary);
+    font-size: 14px;
+}
+
+.wpai-mapping-table {
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-md);
+    overflow: hidden;
+}
+
+.wpai-mapping-row {
+    display: grid;
+    grid-template-columns: 1fr 40px 1fr;
+    align-items: center;
+    border-bottom: 1px solid var(--stripe-border-light);
+}
+
+.wpai-mapping-row:last-child {
+    border-bottom: none;
+}
+
+.wpai-mapping-row.wpai-mapping-header {
+    background: var(--stripe-surface);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--stripe-text-secondary);
+}
+
+.wpai-mapping-col {
+    padding: 14px 16px;
+}
+
+.wpai-mapping-arrow {
+    text-align: center;
+    color: var(--stripe-text-muted);
+    font-size: 16px;
+}
+
+.wpai-gen-field-label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--stripe-text);
+    margin-bottom: 2px;
+}
+
+.wpai-gen-field-desc {
+    display: block;
+    font-size: 11px;
+    color: var(--stripe-text-muted);
+}
+
+.wpai-mapping-select {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius);
+    background: var(--stripe-card);
+    cursor: pointer;
+    transition: var(--stripe-transition);
+}
+
+.wpai-mapping-select:focus {
+    outline: none;
+    border-color: var(--stripe-primary);
+    box-shadow: var(--stripe-shadow-focus);
+}
+
+.wpai-mapping-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--stripe-info-bg);
+    border-radius: var(--stripe-radius);
+    font-size: 12px;
+    color: var(--stripe-info);
+}
+
+.wpai-mapping-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--stripe-surface);
+    border-top: 1px solid var(--stripe-border);
+}
+
+@media (max-width: 600px) {
+    .wpai-mapping-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .wpai-mapping-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .wpai-mapping-arrow {
+        display: none;
+    }
+    
+    .wpai-mapping-col {
+        padding: 10px 14px;
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════
    ESCONDER NOTIFICACOES DE OUTROS PLUGINS
    ═══════════════════════════════════════════════════════════ */

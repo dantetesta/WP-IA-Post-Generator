@@ -52,6 +52,12 @@ class WPAI_Admin
         if ($hook === 'toplevel_page_wp-ai-post-generator') {
             wp_enqueue_style('wpai-admin', WPAI_POST_GEN_PLUGIN_URL . 'assets/css/admin.css', [], WPAI_POST_GEN_VERSION);
             wp_enqueue_script('wpai-admin', WPAI_POST_GEN_PLUGIN_URL . 'assets/js/admin.js', ['jquery'], WPAI_POST_GEN_VERSION, true);
+            
+            // Localize para página de admin (mapeamento de campos)
+            wp_localize_script('wpai-admin', 'wpaiPostGen', [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('wpai_post_gen_nonce')
+            ]);
             return;
         }
 
@@ -237,6 +243,160 @@ class WPAI_Admin
         return $enabled;
     }
 
+    // Escaneia campos disponíveis de um CPT
+    public function scan_post_type_fields($post_type)
+    {
+        $fields = [
+            'native' => [],
+            'meta' => [],
+            'taxonomies' => []
+        ];
+
+        // 1. Campos nativos suportados
+        $supports = get_all_post_type_supports($post_type);
+        
+        if (isset($supports['title'])) {
+            $fields['native']['title'] = ['label' => 'Título', 'type' => 'native'];
+        }
+        if (isset($supports['editor'])) {
+            $fields['native']['content'] = ['label' => 'Conteúdo', 'type' => 'native'];
+        }
+        if (isset($supports['excerpt'])) {
+            $fields['native']['excerpt'] = ['label' => 'Resumo (Excerpt)', 'type' => 'native'];
+        }
+        if (isset($supports['thumbnail'])) {
+            $fields['native']['thumbnail'] = ['label' => 'Imagem Destacada', 'type' => 'native'];
+        }
+
+        // 2. Taxonomias associadas
+        $taxonomies = get_object_taxonomies($post_type, 'objects');
+        foreach ($taxonomies as $tax) {
+            if ($tax->public && $tax->show_ui) {
+                $fields['taxonomies'][$tax->name] = [
+                    'label' => $tax->label,
+                    'type' => 'taxonomy',
+                    'hierarchical' => $tax->hierarchical
+                ];
+            }
+        }
+
+        // 3. Meta fields registrados (detecta ACF, Meta Box, Pods, CMB2)
+        $fields['meta'] = $this->detect_meta_fields($post_type);
+
+        return $fields;
+    }
+
+    // Detecta meta fields de plugins populares
+    private function detect_meta_fields($post_type)
+    {
+        $meta_fields = [];
+
+        // ACF (Advanced Custom Fields)
+        if (function_exists('acf_get_field_groups')) {
+            $groups = acf_get_field_groups(['post_type' => $post_type]);
+            foreach ($groups as $group) {
+                $acf_fields = acf_get_fields($group['key']);
+                if ($acf_fields) {
+                    foreach ($acf_fields as $field) {
+                        // Só inclui campos de texto/textarea/wysiwyg
+                        if (in_array($field['type'], ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number'])) {
+                            $meta_fields[$field['name']] = [
+                                'label' => $field['label'],
+                                'type' => 'acf',
+                                'field_type' => $field['type'],
+                                'key' => $field['key']
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        // Meta Box
+        if (function_exists('rwmb_get_registry')) {
+            $registry = rwmb_get_registry('meta_box');
+            if ($registry) {
+                $meta_boxes = $registry->all();
+                foreach ($meta_boxes as $meta_box) {
+                    if (isset($meta_box['post_types']) && in_array($post_type, (array)$meta_box['post_types'])) {
+                        foreach ($meta_box['fields'] as $field) {
+                            if (in_array($field['type'], ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number'])) {
+                                $meta_fields[$field['id']] = [
+                                    'label' => $field['name'] ?? $field['id'],
+                                    'type' => 'metabox',
+                                    'field_type' => $field['type']
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Pods
+        if (function_exists('pods')) {
+            $pod = pods($post_type, null, false);
+            if ($pod && $pod->valid()) {
+                $pod_fields = $pod->fields();
+                foreach ($pod_fields as $field_name => $field) {
+                    if (in_array($field['type'], ['text', 'paragraph', 'wysiwyg', 'website', 'email', 'number'])) {
+                        $meta_fields[$field_name] = [
+                            'label' => $field['label'],
+                            'type' => 'pods',
+                            'field_type' => $field['type']
+                        ];
+                    }
+                }
+            }
+        }
+
+        // CMB2
+        global $wp_filter;
+        if (isset($wp_filter['cmb2_admin_init'])) {
+            // CMB2 registra campos via hooks, difícil detectar sem instanciar
+            // Fallback: busca meta keys registradas
+        }
+
+        // Fallback: Meta keys registradas no banco
+        global $wpdb;
+        $registered_meta = get_registered_meta_keys('post', $post_type);
+        foreach ($registered_meta as $key => $args) {
+            if (!isset($meta_fields[$key]) && strpos($key, '_') !== 0) {
+                $meta_fields[$key] = [
+                    'label' => $args['description'] ?? ucfirst(str_replace('_', ' ', $key)),
+                    'type' => 'registered',
+                    'field_type' => $args['type'] ?? 'string'
+                ];
+            }
+        }
+
+        return $meta_fields;
+    }
+
+    // Retorna os mapeamentos salvos para um post type
+    public function get_field_mappings($post_type)
+    {
+        $settings = get_option('wpai_post_gen_settings', []);
+        $mappings = $settings['field_mappings'] ?? [];
+        return $mappings[$post_type] ?? [];
+    }
+
+    // Campos que o plugin gera
+    public function get_generated_fields()
+    {
+        return [
+            'title' => ['label' => 'Título do Artigo', 'description' => 'Título SEO otimizado'],
+            'content' => ['label' => 'Conteúdo', 'description' => 'Artigo completo em HTML'],
+            'excerpt' => ['label' => 'Resumo', 'description' => 'Resumo curto para excerpt'],
+            'meta_title' => ['label' => 'Meta Title (SEO)', 'description' => 'Título para mecanismos de busca'],
+            'meta_description' => ['label' => 'Meta Description (SEO)', 'description' => 'Descrição para SERP'],
+            'focus_keyword' => ['label' => 'Focus Keyword', 'description' => 'Palavra-chave principal'],
+            'secondary_keywords' => ['label' => 'Keywords Secundárias', 'description' => 'Lista de palavras-chave'],
+            'thumbnail' => ['label' => 'Thumbnail', 'description' => 'Imagem destacada gerada'],
+            'tags' => ['label' => 'Tags', 'description' => 'Tags sugeridas pela IA']
+        ];
+    }
+
     public function render_settings_page()
     {
         if (!current_user_can('manage_options'))
@@ -391,23 +551,32 @@ class WPAI_Admin
                     <div class="wpai-panel-body">
                         <div class="wpai-field">
                             <label class="wpai-label-main"><?php esc_html_e('Tipos de Conteúdo', 'wp-ai-post-generator'); ?></label>
-                            <p class="wpai-field-desc">O botão "Criar com IA" aparecerá na listagem dos post types selecionados abaixo.</p>
+                            <p class="wpai-field-desc">O botão "Criar com IA" aparecerá na listagem dos post types selecionados abaixo. Clique em ⚙️ para mapear campos.</p>
                             
                             <div class="wpai-post-types-grid">
                                 <?php foreach ($available_post_types as $pt_slug => $pt_label): ?>
-                                    <label class="wpai-post-type-item">
-                                        <input type="checkbox" 
-                                               name="wpai_post_gen_settings[enabled_post_types][]" 
-                                               value="<?php echo esc_attr($pt_slug); ?>"
-                                               <?php checked(in_array($pt_slug, $enabled_post_types)); ?>>
-                                        <span class="wpai-pt-checkbox">
-                                            <span class="dashicons dashicons-yes"></span>
-                                        </span>
-                                        <span class="wpai-pt-info">
-                                            <span class="wpai-pt-label"><?php echo esc_html($pt_label); ?></span>
-                                            <span class="wpai-pt-slug"><?php echo esc_html($pt_slug); ?></span>
-                                        </span>
-                                    </label>
+                                    <div class="wpai-post-type-item-wrapper">
+                                        <label class="wpai-post-type-item">
+                                            <input type="checkbox" 
+                                                   name="wpai_post_gen_settings[enabled_post_types][]" 
+                                                   value="<?php echo esc_attr($pt_slug); ?>"
+                                                   <?php checked(in_array($pt_slug, $enabled_post_types)); ?>
+                                                   data-pt="<?php echo esc_attr($pt_slug); ?>">
+                                            <span class="wpai-pt-checkbox">
+                                                <span class="dashicons dashicons-yes"></span>
+                                            </span>
+                                            <span class="wpai-pt-info">
+                                                <span class="wpai-pt-label"><?php echo esc_html($pt_label); ?></span>
+                                                <span class="wpai-pt-slug"><?php echo esc_html($pt_slug); ?></span>
+                                            </span>
+                                        </label>
+                                        <button type="button" class="wpai-pt-config-btn" 
+                                                data-pt="<?php echo esc_attr($pt_slug); ?>" 
+                                                data-label="<?php echo esc_attr($pt_label); ?>"
+                                                title="Configurar mapeamento de campos">
+                                            <span class="dashicons dashicons-admin-generic"></span>
+                                        </button>
+                                    </div>
                                 <?php endforeach; ?>
                             </div>
                             
@@ -415,6 +584,34 @@ class WPAI_Admin
                                 <span class="dashicons dashicons-info"></span>
                                 CPTs (Custom Post Types) criados por plugins ou temas também aparecem aqui automaticamente.
                             </p>
+                        </div>
+
+                        <!-- Modal de Mapeamento de Campos -->
+                        <div class="wpai-mapping-modal" id="wpai-mapping-modal" style="display: none;">
+                            <div class="wpai-mapping-overlay"></div>
+                            <div class="wpai-mapping-content">
+                                <div class="wpai-mapping-header">
+                                    <h3><span class="dashicons dashicons-randomize"></span> Mapeamento de Campos: <span id="wpai-mapping-pt-name"></span></h3>
+                                    <button type="button" class="wpai-mapping-close">&times;</button>
+                                </div>
+                                <div class="wpai-mapping-body">
+                                    <p class="wpai-mapping-desc">Configure como os campos gerados pela IA serão salvos no seu CPT.</p>
+                                    
+                                    <div class="wpai-mapping-loading" id="wpai-mapping-loading">
+                                        <span class="dashicons dashicons-update wpai-spin"></span> Escaneando campos...
+                                    </div>
+                                    
+                                    <div class="wpai-mapping-grid" id="wpai-mapping-grid" style="display: none;">
+                                        <!-- Preenchido via JavaScript -->
+                                    </div>
+                                </div>
+                                <div class="wpai-mapping-footer">
+                                    <button type="button" class="wpai-btn-secondary" id="wpai-mapping-cancel">Cancelar</button>
+                                    <button type="button" class="wpai-btn-primary" id="wpai-mapping-save">
+                                        <span class="dashicons dashicons-saved"></span> Salvar Mapeamento
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
