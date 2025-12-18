@@ -20,7 +20,17 @@ class WPAI_Admin
         add_action('admin_menu', [$this, 'add_menu_page']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('admin_init', [$this, 'register_settings']);
-        add_action('admin_footer-edit.php', [$this, 'add_generate_button']);
+        add_action('admin_footer', [$this, 'add_generate_button_footer']);
+    }
+
+    // Adiciona botão no footer de todas as páginas de listagem de post types
+    public function add_generate_button_footer()
+    {
+        $screen = get_current_screen();
+        if (!$screen || $screen->base !== 'edit') {
+            return;
+        }
+        $this->add_generate_button();
     }
 
     public function add_menu_page()
@@ -38,8 +48,23 @@ class WPAI_Admin
 
     public function enqueue_scripts($hook)
     {
-        if ($hook !== 'toplevel_page_wp-ai-post-generator' && $hook !== 'edit.php')
+        // Página de configurações do plugin
+        if ($hook === 'toplevel_page_wp-ai-post-generator') {
+            wp_enqueue_style('wpai-admin', WPAI_POST_GEN_PLUGIN_URL . 'assets/css/admin.css', [], WPAI_POST_GEN_VERSION);
+            wp_enqueue_script('wpai-admin', WPAI_POST_GEN_PLUGIN_URL . 'assets/js/admin.js', ['jquery'], WPAI_POST_GEN_VERSION, true);
             return;
+        }
+
+        // Verifica se está em uma página de listagem de post type habilitado
+        $screen = get_current_screen();
+        if (!$screen || $screen->base !== 'edit') {
+            return;
+        }
+        
+        $enabled_post_types = $this->get_enabled_post_types();
+        if (!in_array($screen->post_type, $enabled_post_types)) {
+            return;
+        }
 
         wp_enqueue_style('wpai-admin', WPAI_POST_GEN_PLUGIN_URL . 'assets/css/admin.css', [], WPAI_POST_GEN_VERSION);
         wp_enqueue_style('wpai-modal', WPAI_POST_GEN_PLUGIN_URL . 'assets/css/modal.css', [], WPAI_POST_GEN_VERSION);
@@ -50,13 +75,27 @@ class WPAI_Admin
         $settings = get_option('wpai_post_gen_settings', []);
         $has_openai_key = !empty($settings['openai_api_key']);
         $has_gemini_key = !empty($settings['gemini_api_key']);
+        $has_openrouter_key = !empty($settings['openrouter_api_key']);
+
+        // Obtém informações do post type atual
+        $post_type_obj = get_post_type_object($screen->post_type);
+        $post_type_label = $post_type_obj ? $post_type_obj->labels->singular_name : 'Post';
+        
+        // Verifica quais taxonomias o post type suporta
+        $has_categories = is_object_in_taxonomy($screen->post_type, 'category');
+        $has_tags = is_object_in_taxonomy($screen->post_type, 'post_tag');
 
         wp_localize_script('wpai-modal', 'wpaiPostGen', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wpai_post_gen_nonce'),
             'hasImageGeneration' => $has_openai_key,
             'hasGeminiKey' => $has_gemini_key,
+            'hasOpenRouterKey' => $has_openrouter_key,
             'imageFormats' => WPAI_OpenAI_Client::get_image_sizes(),
+            'currentPostType' => $screen->post_type,
+            'currentPostTypeLabel' => $post_type_label,
+            'hasCategories' => $has_categories,
+            'hasTags' => $has_tags,
             'strings' => [
                 'generating' => __('Gerando artigo...', 'wp-ai-post-generator'),
                 'success' => __('Artigo gerado com sucesso!', 'wp-ai-post-generator'),
@@ -92,8 +131,12 @@ class WPAI_Admin
         // Gemini API Key
         if (!empty($input['gemini_api_key'])) {
             $gemini_key = sanitize_text_field($input['gemini_api_key']);
-            // Gemini keys começam com "AI" geralmente
-            if (strlen($gemini_key) > 10 && $gemini_key !== '••••••••••••••••') {
+            // Só salva se não for placeholder e tiver conteúdo válido
+            if (
+                strlen($gemini_key) > 10 &&
+                strpos($gemini_key, '•') === false &&
+                strpos($gemini_key, '*') === false
+            ) {
                 $sanitized['gemini_api_key'] = $this->encryption->encrypt($gemini_key);
             } else {
                 $sanitized['gemini_api_key'] = $settings['gemini_api_key'] ?? '';
@@ -104,7 +147,7 @@ class WPAI_Admin
 
         // OpenAI Model
         $valid_models = array_keys(WPAI_OpenAI_Client::get_available_models());
-        $sanitized['openai_model'] = in_array($input['openai_model'], $valid_models) ? $input['openai_model'] : 'gpt-4.1-mini';
+        $sanitized['openai_model'] = in_array($input['openai_model'], $valid_models) ? $input['openai_model'] : 'gpt-4o-mini';
 
         // Default thumbnail format
         $valid_formats = array_keys(WPAI_Gemini_Client::get_image_formats());
@@ -112,7 +155,86 @@ class WPAI_Admin
             ? $input['default_thumbnail_format']
             : '3:2';
 
+        // Post Types habilitados
+        $enabled_post_types = $input['enabled_post_types'] ?? ['post'];
+        if (!is_array($enabled_post_types)) {
+            $enabled_post_types = ['post'];
+        }
+        // Sanitiza cada valor e garante que são post types válidos (com show_ui)
+        $valid_post_types = array_keys(get_post_types(['show_ui' => true]));
+        $sanitized['enabled_post_types'] = array_filter(
+            array_map('sanitize_key', $enabled_post_types),
+            function ($pt) use ($valid_post_types) {
+                return in_array($pt, $valid_post_types);
+            }
+        );
+        // Se nenhum selecionado, mantém 'post' como padrão
+        if (empty($sanitized['enabled_post_types'])) {
+            $sanitized['enabled_post_types'] = ['post'];
+        }
+
         return $sanitized;
+    }
+
+    // Retorna os post types disponíveis para seleção
+    public function get_available_post_types()
+    {
+        // Busca todos os post types que têm interface de admin (show_ui = true)
+        $post_types = get_post_types(['show_ui' => true], 'objects');
+        $available = [];
+        
+        // Lista de post types de sistema para ignorar
+        $excluded = [
+            'attachment', 
+            'revision', 
+            'nav_menu_item', 
+            'custom_css', 
+            'customize_changeset', 
+            'oembed_cache', 
+            'wp_block', 
+            'wp_template', 
+            'wp_template_part', 
+            'wp_global_styles', 
+            'wp_navigation',
+            'user_request',
+            'wp_font_family',
+            'wp_font_face'
+        ];
+        
+        foreach ($post_types as $pt) {
+            // Ignora post types de sistema
+            if (in_array($pt->name, $excluded)) {
+                continue;
+            }
+            
+            // Só inclui se tiver suporte a editor (conteúdo)
+            // Mas também inclui se não tiver definido supports (para não excluir CPTs mal configurados)
+            $supports = get_all_post_type_supports($pt->name);
+            $has_editor = empty($supports) || isset($supports['editor']) || isset($supports['title']);
+            
+            if ($has_editor) {
+                $available[$pt->name] = $pt->label;
+            }
+        }
+        
+        // Ordena alfabeticamente pelo label
+        asort($available);
+        
+        return $available;
+    }
+
+    // Retorna os post types habilitados para o gerador
+    public function get_enabled_post_types()
+    {
+        $settings = get_option('wpai_post_gen_settings', []);
+        $enabled = $settings['enabled_post_types'] ?? ['post'];
+        
+        // Garante que sempre retorne um array
+        if (!is_array($enabled)) {
+            $enabled = ['post'];
+        }
+        
+        return $enabled;
     }
 
     public function render_settings_page()
@@ -123,10 +245,12 @@ class WPAI_Admin
         $settings = get_option('wpai_post_gen_settings', []);
         $has_openai_key = !empty($settings['openai_api_key']);
         $has_gemini_key = !empty($settings['gemini_api_key']);
-        $model = $settings['openai_model'] ?? 'gpt-4.1-mini';
+        $model = $settings['openai_model'] ?? 'gpt-4o-mini';
         $models = WPAI_OpenAI_Client::get_available_models();
         $thumbnail_format = $settings['default_thumbnail_format'] ?? '3:2';
         $image_formats = WPAI_Gemini_Client::get_image_formats();
+        $available_post_types = $this->get_available_post_types();
+        $enabled_post_types = $this->get_enabled_post_types();
         ?>
         <div class="wrap wpai-settings-wrap">
             <div class="wpai-settings-header">
@@ -137,33 +261,56 @@ class WPAI_Admin
                 </p>
             </div>
 
+            <!-- Tabs Navigation -->
+            <div class="wpai-admin-tabs">
+                <button class="wpai-admin-tab active" data-tab="openai">
+                    <span class="dashicons dashicons-admin-network"></span> OpenAI
+                    <?php if ($has_openai_key): ?><span class="wpai-tab-badge success">✓</span><?php endif; ?>
+                </button>
+                <button class="wpai-admin-tab" data-tab="gemini">
+                    <span class="dashicons dashicons-cloud"></span> Gemini
+                    <?php if ($has_gemini_key): ?><span class="wpai-tab-badge success">✓</span><?php endif; ?>
+                </button>
+                <button class="wpai-admin-tab" data-tab="pipeline">
+                    <span class="dashicons dashicons-randomize"></span> Pipeline
+                </button>
+                <button class="wpai-admin-tab" data-tab="posttypes">
+                    <span class="dashicons dashicons-admin-post"></span> Post Types
+                </button>
+            </div>
+
             <form method="post" action="options.php" class="wpai-settings-form">
                 <?php settings_fields('wpai_post_gen_settings_group'); ?>
 
-                <!-- OpenAI Settings -->
-                <div class="wpai-card">
-                    <div class="wpai-card-header">
-                        <h2><span class="dashicons dashicons-admin-network"></span>
-                            <?php esc_html_e('OpenAI - Geração de Texto', 'wp-ai-post-generator'); ?></h2>
+                <!-- Tab: OpenAI -->
+                <div class="wpai-admin-panel active" id="wpai-panel-openai">
+                    <div class="wpai-panel-header purple">
+                        <h2>OpenAI - Geração de Texto</h2>
+                        <p>Configure sua API Key da OpenAI para gerar artigos com GPT-4</p>
                     </div>
-                    <div class="wpai-card-body">
+                    <div class="wpai-panel-body">
                         <div class="wpai-field">
                             <label for="openai_api_key"><?php esc_html_e('OpenAI API Key', 'wp-ai-post-generator'); ?></label>
-                            <div class="wpai-input-group">
-                                <input type="password" id="openai_api_key" name="wpai_post_gen_settings[openai_api_key]"
-                                    placeholder="<?php echo $has_openai_key ? '••••••••••••••••' : 'sk-...'; ?>"
-                                    class="wpai-input" autocomplete="off">
-                                <button type="button" class="wpai-btn-icon" id="toggle-api-key">
-                                    <span class="dashicons dashicons-visibility"></span>
-                                </button>
+                            <div class="wpai-api-key-wrapper">
+                                <div class="wpai-api-key-input">
+                                    <span class="wpai-key-icon">🔑</span>
+                                    <input type="password" id="openai_api_key" name="wpai_post_gen_settings[openai_api_key]"
+                                        placeholder="<?php echo $has_openai_key ? '••••••••••••••••••••••••••••••••' : 'sk-...'; ?>"
+                                        class="wpai-input-key" autocomplete="off" data-has-key="<?php echo $has_openai_key ? '1' : '0'; ?>">
+                                </div>
+                                <div class="wpai-api-key-actions">
+                                    <button type="button" class="wpai-key-btn" id="toggle-api-key" title="Mostrar/Ocultar">
+                                        <span class="dashicons dashicons-visibility"></span>
+                                    </button>
+                                    <button type="button" class="wpai-key-btn" id="copy-api-key" title="Copiar" <?php echo !$has_openai_key ? 'disabled' : ''; ?>>
+                                        <span class="dashicons dashicons-admin-page"></span>
+                                    </button>
+                                </div>
                             </div>
                             <?php if ($has_openai_key): ?>
-                                <p class="wpai-field-hint wpai-success"><span class="dashicons dashicons-yes-alt"></span>
-                                    <?php esc_html_e('API Key configurada e criptografada.', 'wp-ai-post-generator'); ?></p>
+                                <p class="wpai-field-hint wpai-success"><span class="dashicons dashicons-yes-alt"></span> API Key configurada e criptografada.</p>
                             <?php else: ?>
-                                <p class="wpai-field-hint">
-                                    <?php esc_html_e('Obtenha em platform.openai.com', 'wp-ai-post-generator'); ?>
-                                </p>
+                                <p class="wpai-field-hint">Obtenha em <a href="https://platform.openai.com" target="_blank">platform.openai.com</a></p>
                             <?php endif; ?>
                         </div>
 
@@ -177,77 +324,147 @@ class WPAI_Admin
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
+                        <div class="wpai-field-actions">
+                            <button type="button" id="test-openai" class="wpai-btn-small wpai-btn-outline">
+                                <span class="dashicons dashicons-update"></span> Testar Conexão
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Gemini Settings -->
-                <div class="wpai-card">
-                    <div class="wpai-card-header" style="background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);">
-                        <h2><span class="dashicons dashicons-format-image"></span>
-                            <?php esc_html_e('Google Gemini - Geração de Thumbnails', 'wp-ai-post-generator'); ?></h2>
+                <!-- Tab: Gemini -->
+                <div class="wpai-admin-panel" id="wpai-panel-gemini">
+                    <div class="wpai-panel-header blue">
+                        <h2>Google Gemini - Texto, Imagens e Áudio</h2>
+                        <p>Configure sua API Key do Gemini para usar como alternativa ou para thumbnails</p>
                     </div>
-                    <div class="wpai-card-body">
+                    <div class="wpai-panel-body">
                         <div class="wpai-field">
                             <label for="gemini_api_key"><?php esc_html_e('Gemini API Key', 'wp-ai-post-generator'); ?></label>
-                            <div class="wpai-input-group">
-                                <input type="password" id="gemini_api_key" name="wpai_post_gen_settings[gemini_api_key]"
-                                    placeholder="<?php echo $has_gemini_key ? '••••••••••••••••' : 'AIza...'; ?>"
-                                    class="wpai-input" autocomplete="off">
-                                <button type="button" class="wpai-btn-icon" id="toggle-gemini-key">
-                                    <span class="dashicons dashicons-visibility"></span>
-                                </button>
+                            <div class="wpai-api-key-wrapper">
+                                <div class="wpai-api-key-input">
+                                    <span class="wpai-key-icon">🔑</span>
+                                    <input type="password" id="gemini_api_key" name="wpai_post_gen_settings[gemini_api_key]"
+                                        placeholder="<?php echo $has_gemini_key ? '••••••••••••••••••••••••••••••••' : 'AIza...'; ?>"
+                                        class="wpai-input-key" autocomplete="off" data-has-key="<?php echo $has_gemini_key ? '1' : '0'; ?>">
+                                </div>
+                                <div class="wpai-api-key-actions">
+                                    <button type="button" class="wpai-key-btn" id="toggle-gemini-key" title="Mostrar/Ocultar">
+                                        <span class="dashicons dashicons-visibility"></span>
+                                    </button>
+                                    <button type="button" class="wpai-key-btn" id="copy-gemini-key" title="Copiar" <?php echo !$has_gemini_key ? 'disabled' : ''; ?>>
+                                        <span class="dashicons dashicons-admin-page"></span>
+                                    </button>
+                                </div>
                             </div>
                             <?php if ($has_gemini_key): ?>
-                                <p class="wpai-field-hint wpai-success"><span class="dashicons dashicons-yes-alt"></span>
-                                    <?php esc_html_e('API Key do Gemini configurada.', 'wp-ai-post-generator'); ?></p>
+                                <p class="wpai-field-hint wpai-success"><span class="dashicons dashicons-yes-alt"></span> API Key do Gemini configurada.</p>
                             <?php else: ?>
-                                <p class="wpai-field-hint">
-                                    <?php esc_html_e('Obtenha em aistudio.google.com/apikey', 'wp-ai-post-generator'); ?>
-                                </p>
+                                <p class="wpai-field-hint">Obtenha em <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>
                             <?php endif; ?>
                         </div>
 
+                        <div class="wpai-gemini-features">
+                            <h4>Recursos disponíveis com Gemini:</h4>
+                            <ul>
+                                <li><span class="dashicons dashicons-yes"></span> Geração de texto (alternativa à OpenAI)</li>
+                                <li><span class="dashicons dashicons-yes"></span> Geração de thumbnails (gratuito)</li>
+                                <li><span class="dashicons dashicons-yes"></span> Transcrição de áudio</li>
+                            </ul>
+                        </div>
+
+                        <div class="wpai-field-actions">
+                            <button type="button" id="test-gemini" class="wpai-btn-small wpai-btn-outline">
+                                <span class="dashicons dashicons-update"></span> Testar Conexão
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Post Types -->
+                <div class="wpai-admin-panel" id="wpai-panel-posttypes">
+                    <div class="wpai-panel-header orange">
+                        <h2>Post Types Habilitados</h2>
+                        <p>Selecione em quais tipos de conteúdo o gerador de IA estará disponível</p>
+                    </div>
+                    <div class="wpai-panel-body">
                         <div class="wpai-field">
-                            <label
-                                for="default_thumbnail_format"><?php esc_html_e('Formato Padrão de Thumbnail', 'wp-ai-post-generator'); ?></label>
-                            <select id="default_thumbnail_format" name="wpai_post_gen_settings[default_thumbnail_format]"
-                                class="wpai-select">
-                                <?php foreach ($image_formats as $value => $format): ?>
-                                    <option value="<?php echo esc_attr($value); ?>" <?php selected($thumbnail_format, $value); ?>>
-                                        <?php echo esc_html($format['label']); ?> - <?php echo esc_html($format['description']); ?>
-                                    </option>
+                            <label class="wpai-label-main"><?php esc_html_e('Tipos de Conteúdo', 'wp-ai-post-generator'); ?></label>
+                            <p class="wpai-field-desc">O botão "Criar com IA" aparecerá na listagem dos post types selecionados abaixo.</p>
+                            
+                            <div class="wpai-post-types-grid">
+                                <?php foreach ($available_post_types as $pt_slug => $pt_label): ?>
+                                    <label class="wpai-post-type-item">
+                                        <input type="checkbox" 
+                                               name="wpai_post_gen_settings[enabled_post_types][]" 
+                                               value="<?php echo esc_attr($pt_slug); ?>"
+                                               <?php checked(in_array($pt_slug, $enabled_post_types)); ?>>
+                                        <span class="wpai-pt-checkbox">
+                                            <span class="dashicons dashicons-yes"></span>
+                                        </span>
+                                        <span class="wpai-pt-info">
+                                            <span class="wpai-pt-label"><?php echo esc_html($pt_label); ?></span>
+                                            <span class="wpai-pt-slug"><?php echo esc_html($pt_slug); ?></span>
+                                        </span>
+                                    </label>
                                 <?php endforeach; ?>
-                            </select>
+                            </div>
+                            
+                            <p class="wpai-field-hint">
+                                <span class="dashicons dashicons-info"></span>
+                                CPTs (Custom Post Types) criados por plugins ou temas também aparecem aqui automaticamente.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Pipeline -->
+                <div class="wpai-admin-panel" id="wpai-panel-pipeline">
+                    <div class="wpai-panel-header green">
+                        <h2>Pipeline Multi-Agente</h2>
+                        <p>Conheça os agentes que trabalham para criar seu conteúdo</p>
+                    </div>
+                    <div class="wpai-panel-body">
+                        <div class="wpai-pipeline-grid">
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">🔍</div>
+                                <h4>InterpreterAgent</h4>
+                                <p>Analisa o briefing e cria estrutura SEO otimizada</p>
+                            </div>
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">✍️</div>
+                                <h4>WriterAgent</h4>
+                                <p>Escreve o artigo otimizado seguindo E-E-A-T</p>
+                            </div>
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">🔎</div>
+                                <h4>ReviewerAgent</h4>
+                                <p>Avalia qualidade, SEO e humanização</p>
+                            </div>
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">🏷️</div>
+                                <h4>TitleAgent</h4>
+                                <p>Gera 4 títulos profissionais otimizados</p>
+                            </div>
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">📊</div>
+                                <h4>SEOAgent</h4>
+                                <p>Cria metadados para Rank Math SEO</p>
+                            </div>
+                            <div class="wpai-agent-card">
+                                <div class="wpai-agent-icon">🖼️</div>
+                                <h4>ThumbnailAgent</h4>
+                                <p>Cria prompt e gera thumbnail com IA</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="wpai-actions">
                     <?php submit_button(__('Salvar Configurações', 'wp-ai-post-generator'), 'primary wpai-btn', 'submit', false); ?>
-                    <button type="button" id="test-connection" class="wpai-btn wpai-btn-secondary">
-                        <span class="dashicons dashicons-update"></span>
-                        <?php esc_html_e('Testar Conexão', 'wp-ai-post-generator'); ?>
-                    </button>
                 </div>
             </form>
-
-            <div class="wpai-card wpai-info-card">
-                <div class="wpai-card-header">
-                    <h2><span class="dashicons dashicons-info"></span>
-                        <?php esc_html_e('Pipeline Multi-Agente', 'wp-ai-post-generator'); ?>
-                    </h2>
-                </div>
-                <div class="wpai-card-body">
-                    <ol class="wpai-steps">
-                        <li><strong>InterpreterAgent</strong> - Analisa o briefing e cria estrutura SEO</li>
-                        <li><strong>WriterAgent</strong> - Escreve o artigo otimizado (E-E-A-T)</li>
-                        <li><strong>ReviewerAgent</strong> - Avalia qualidade e humanização</li>
-                        <li><strong>TitleAgent</strong> - Gera 5 títulos profissionais</li>
-                        <li><strong>SEOAgent</strong> - Cria metadados para Rank Math</li>
-                        <li><strong>ThumbnailAgent</strong> - Cria prompt e gera thumbnail (Gemini)</li>
-                    </ol>
-                </div>
-            </div>
 
             <p class="wpai-credits"><?php esc_html_e('Desenvolvido por', 'wp-ai-post-generator'); ?> <a
                     href="https://dantetesta.com.br" target="_blank">Dante Testa</a> &bull;
@@ -259,75 +476,122 @@ class WPAI_Admin
     public function add_generate_button()
     {
         global $typenow;
-        if ($typenow !== 'post')
+        
+        // Verifica se o post type atual está habilitado
+        $enabled_post_types = $this->get_enabled_post_types();
+        if (!in_array($typenow, $enabled_post_types)) {
             return;
+        }
 
-        if (!current_user_can('edit_posts'))
+        // Verifica permissão para o post type
+        $post_type_obj = get_post_type_object($typenow);
+        if (!$post_type_obj || !current_user_can($post_type_obj->cap->edit_posts)) {
             return;
+        }
         ?>
         <style>
+            /* Botão no topo - discreto */
+            .wpai-top-btn {
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 6px !important;
+                padding: 6px 12px !important;
+                background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+                color: #fff !important;
+                font-size: 12px !important;
+                font-weight: 500 !important;
+                border: none !important;
+                border-radius: 6px !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease !important;
+                text-decoration: none !important;
+                margin-left: 8px !important;
+                vertical-align: middle !important;
+            }
+            .wpai-top-btn:hover {
+                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+                color: #fff !important;
+                transform: translateY(-1px) !important;
+            }
+            .wpai-top-btn .dashicons {
+                width: 14px !important;
+                height: 14px !important;
+                font-size: 14px !important;
+            }
+
+            /* Botão flutuante - FAB */
             .wpai-fab {
-                position: fixed;
-                bottom: 30px;
-                right: 30px;
-                z-index: 9999;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 14px 24px;
-                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-                color: #fff;
-                font-size: 14px;
-                font-weight: 600;
-                border: none;
-                border-radius: 50px;
-                box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4), 0 2px 8px rgba(0, 0, 0, 0.15);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                text-decoration: none;
+                position: fixed !important;
+                bottom: 30px !important;
+                right: 30px !important;
+                z-index: 9999 !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 10px !important;
+                padding: 14px 28px !important;
+                background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+                color: #fff !important;
+                font-size: 14px !important;
+                font-weight: 600 !important;
+                border: none !important;
+                border-radius: 50px !important;
+                box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4), 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+                cursor: pointer !important;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                text-decoration: none !important;
             }
 
             .wpai-fab:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0, 0, 0, 0.2);
-                color: #fff;
+                transform: translateY(-3px) scale(1.02) !important;
+                box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+                color: #fff !important;
+                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
             }
 
             .wpai-fab:active {
-                transform: translateY(0);
+                transform: translateY(-1px) scale(1) !important;
             }
 
             .wpai-fab .dashicons {
-                width: 20px;
-                height: 20px;
-                font-size: 20px;
+                width: 20px !important;
+                height: 20px !important;
+                font-size: 20px !important;
             }
 
             @media (max-width: 782px) {
                 .wpai-fab {
-                    bottom: 20px;
-                    right: 20px;
-                    padding: 12px 16px;
-                    font-size: 13px;
+                    bottom: 20px !important;
+                    right: 20px !important;
+                    padding: 0 !important;
+                    border-radius: 50% !important;
+                    width: 56px !important;
+                    height: 56px !important;
+                    justify-content: center !important;
                 }
-
                 .wpai-fab span:last-child {
-                    display: none;
+                    display: none !important;
                 }
-
-                .wpai-fab {
-                    border-radius: 50%;
-                    width: 56px;
-                    height: 56px;
-                    padding: 0;
-                    justify-content: center;
+                .wpai-top-btn span:last-child {
+                    display: none !important;
                 }
             }
         </style>
+        
+        <!-- Botão flutuante -->
         <button type="button" class="wpai-fab wpai-generate-btn">
             <span class="dashicons dashicons-superhero-alt"></span>
             <span>Criar Post com IA</span>
         </button>
+
+        <script>
+        jQuery(document).ready(function($) {
+            // Adiciona botão discreto no topo ao lado do título
+            var $title = $('.wp-heading-inline');
+            if ($title.length && !$('.wpai-top-btn').length) {
+                $title.after('<button type="button" class="wpai-top-btn wpai-generate-btn"><span class="dashicons dashicons-superhero-alt"></span><span>IA</span></button>');
+            }
+        });
+        </script>
         <?php
     }
 }

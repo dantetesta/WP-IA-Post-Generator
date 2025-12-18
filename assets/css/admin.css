@@ -1,200 +1,172 @@
 /**
- * WP AI Post Generator - Admin Premium Styles
+ * WP AI Post Generator - Admin Dashboard (Stripe-Inspired Design)
  * @author Dante Testa <contato@dantetesta.com.br>
  * @since 1.0.0
- * @updated 2025-12-11 09:41
+ * @updated 2025-12-12 18:50
  */
 
+/* ═══════════════════════════════════════════════════════════
+   STRIPE-INSPIRED DESIGN SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-    /* Cores Primárias - Gradiente Violeta/Índigo */
-    --wpai-primary-50: #f5f3ff;
-    --wpai-primary-100: #ede9fe;
-    --wpai-primary-200: #ddd6fe;
-    --wpai-primary-300: #c4b5fd;
-    --wpai-primary-400: #a78bfa;
-    --wpai-primary-500: #8b5cf6;
-    --wpai-primary-600: #7c3aed;
-    --wpai-primary-700: #6d28d9;
-    --wpai-primary-800: #5b21b6;
-    --wpai-primary-900: #4c1d95;
-
-    /* Cores de Sucesso */
-    --wpai-success-400: #34d399;
-    --wpai-success-500: #10b981;
-    --wpai-success-600: #059669;
-
-    /* Cores de Erro */
-    --wpai-error-400: #fb7185;
-    --wpai-error-500: #f43f5e;
-
-    /* Cores Neutras */
-    --wpai-slate-50: #f8fafc;
-    --wpai-slate-100: #f1f5f9;
-    --wpai-slate-200: #e2e8f0;
-    --wpai-slate-300: #cbd5e1;
-    --wpai-slate-400: #94a3b8;
-    --wpai-slate-500: #64748b;
-    --wpai-slate-600: #475569;
-    --wpai-slate-700: #334155;
-    --wpai-slate-800: #1e293b;
-    --wpai-slate-900: #0f172a;
-
-    /* Gradientes */
-    --wpai-gradient-hero: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    --wpai-gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
-
-    /* Sombras */
-    --wpai-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --wpai-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --wpai-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --wpai-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-    --wpai-shadow-glow: 0 0 40px rgba(139, 92, 246, 0.2);
-
-    /* Transições */
-    --wpai-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    --wpai-radius: 16px;
-    --wpai-radius-sm: 12px;
+    /* Stripe Colors */
+    --stripe-bg: #f6f9fc;
+    --stripe-card: #ffffff;
+    --stripe-surface: #f7fafc;
+    
+    /* Stripe Text */
+    --stripe-text: #1a1f36;
+    --stripe-text-secondary: #697386;
+    --stripe-text-muted: #8898aa;
+    
+    /* Stripe Borders */
+    --stripe-border: #e3e8ee;
+    --stripe-border-light: #f0f3f7;
+    --stripe-border-focus: #635bff;
+    
+    /* Stripe Brand Colors */
+    --stripe-primary: #635bff;
+    --stripe-primary-light: #7a73ff;
+    --stripe-primary-dark: #5851ea;
+    --stripe-primary-bg: #f8f7ff;
+    
+    --stripe-success: #3ecf8e;
+    --stripe-success-bg: #e8faf3;
+    --stripe-warning: #ffab00;
+    --stripe-warning-bg: #fff8e6;
+    --stripe-error: #ff5630;
+    --stripe-error-bg: #ffebe6;
+    --stripe-info: #00b8d9;
+    --stripe-info-bg: #e6f9fd;
+    
+    /* Stripe Shadows */
+    --stripe-shadow-sm: 0 1px 3px rgba(50, 50, 93, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --stripe-shadow: 0 2px 5px rgba(50, 50, 93, 0.1), 0 1px 1px rgba(0, 0, 0, 0.05);
+    --stripe-shadow-md: 0 4px 6px rgba(50, 50, 93, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
+    --stripe-shadow-lg: 0 13px 27px -5px rgba(50, 50, 93, 0.15), 0 8px 16px -8px rgba(0, 0, 0, 0.1);
+    --stripe-shadow-focus: 0 0 0 3px rgba(99, 91, 255, 0.2);
+    
+    /* Stripe Radius */
+    --stripe-radius-sm: 4px;
+    --stripe-radius: 6px;
+    --stripe-radius-md: 8px;
+    --stripe-radius-lg: 12px;
+    
+    /* Transitions */
+    --stripe-transition: 0.15s ease;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SETTINGS PAGE
+   LAYOUT - STRIPE STYLE
    ═══════════════════════════════════════════════════════════ */
 
 .wpai-settings-wrap {
     max-width: 800px;
     margin: 40px auto;
-    padding: 0 20px;
+    padding: 0 32px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   HEADER - STRIPE MINIMAL STYLE
+   ═══════════════════════════════════════════════════════════ */
+
 .wpai-settings-header {
-    text-align: center;
-    margin-bottom: 48px;
-    padding: 40px;
-    background: var(--wpai-gradient-hero);
-    border-radius: var(--wpai-radius);
-    box-shadow: var(--wpai-shadow-xl), var(--wpai-shadow-glow);
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-lg);
+    padding: 32px;
+    margin-bottom: 32px;
+    box-shadow: var(--stripe-shadow);
 }
 
 .wpai-settings-header h1 {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 14px;
-    font-size: 32px;
-    font-weight: 800;
-    color: #fff;
-    margin-bottom: 12px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--stripe-text);
+    margin: 0 0 8px 0;
+    letter-spacing: -0.3px;
 }
 
 .wpai-settings-header h1 .dashicons {
-    width: 44px;
-    height: 44px;
-    font-size: 44px;
-    background: rgba(255, 255, 255, 0.2);
-    padding: 10px;
-    border-radius: 14px;
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--stripe-primary);
+    color: #fff;
+    padding: 8px;
+    border-radius: var(--stripe-radius-md);
 }
 
 .wpai-subtitle {
-    font-size: 16px;
-    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    color: var(--stripe-text-secondary);
     margin: 0;
+    font-weight: 400;
+    line-height: 1.5;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CARDS
-   ═══════════════════════════════════════════════════════════ */
-
-.wpai-card {
-    background: #fff;
-    border-radius: var(--wpai-radius);
-    box-shadow: var(--wpai-shadow-lg);
-    margin-bottom: 28px;
-    overflow: hidden;
-    border: 1px solid var(--wpai-slate-200);
-}
-
-.wpai-card-header {
-    background: var(--wpai-gradient-hero);
-    padding: 22px 28px;
-}
-
-.wpai-card-header h2 {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: #fff;
-    font-size: 18px;
-    font-weight: 700;
-    margin: 0;
-    padding: 0;
-}
-
-.wpai-card-header h2 .dashicons {
-    width: 26px;
-    height: 26px;
-    font-size: 26px;
-}
-
-.wpai-card-body {
-    padding: 28px;
-}
-
-.wpai-info-card .wpai-card-header {
-    background: var(--wpai-gradient-success);
-}
-
-/* ═══════════════════════════════════════════════════════════
-   FORM FIELDS
+   FORM FIELDS - STRIPE STYLE
    ═══════════════════════════════════════════════════════════ */
 
 .wpai-field {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
 }
 
 .wpai-field:last-child {
     margin-bottom: 0;
 }
 
-.wpai-field label {
+.wpai-field > label {
     display: block;
     font-size: 14px;
-    font-weight: 700;
-    color: var(--wpai-slate-700);
-    margin-bottom: 10px;
+    font-weight: 500;
+    color: var(--stripe-text);
+    margin-bottom: 8px;
 }
 
 .wpai-input,
-.wpai-select,
-.wpai-textarea {
+.wpai-select {
     width: 100%;
-    padding: 14px 18px;
-    font-size: 15px;
-    color: var(--wpai-slate-800);
-    background: var(--wpai-slate-50);
-    border: 2px solid var(--wpai-slate-200);
-    border-radius: var(--wpai-radius-sm);
-    transition: var(--wpai-transition);
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--stripe-text);
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius);
+    transition: var(--stripe-transition);
+    line-height: 1.5;
+}
+
+.wpai-input::placeholder {
+    color: var(--stripe-text-muted);
 }
 
 .wpai-input:hover,
 .wpai-select:hover {
-    border-color: var(--wpai-primary-300);
+    border-color: #c4cdd5;
 }
 
 .wpai-input:focus,
-.wpai-select:focus,
-.wpai-textarea:focus {
+.wpai-select:focus {
     outline: none;
-    border-color: var(--wpai-primary-500);
-    background: #fff;
-    box-shadow: 0 0 0 4px var(--wpai-primary-100);
+    border-color: var(--stripe-primary);
+    box-shadow: var(--stripe-shadow-focus);
 }
 
 .wpai-input-group {
     display: flex;
-    gap: 10px;
+    gap: 8px;
 }
 
 .wpai-input-group .wpai-input {
@@ -205,94 +177,241 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
-    background: var(--wpai-slate-50);
-    border: 2px solid var(--wpai-slate-200);
-    border-radius: var(--wpai-radius-sm);
+    width: 42px;
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius);
     cursor: pointer;
-    transition: var(--wpai-transition);
+    transition: var(--stripe-transition);
+    color: var(--stripe-text-secondary);
 }
 
 .wpai-btn-icon:hover {
-    background: var(--wpai-slate-100);
-    border-color: var(--wpai-primary-300);
+    background: var(--stripe-surface);
+    border-color: var(--stripe-primary);
+    color: var(--stripe-primary);
 }
 
 .wpai-btn-icon .dashicons {
-    color: var(--wpai-slate-500);
-}
-
-.wpai-field-hint {
-    font-size: 13px;
-    color: var(--wpai-slate-500);
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.wpai-field-hint.wpai-success {
-    color: var(--wpai-success-500);
-    font-weight: 600;
-}
-
-.wpai-field-hint .dashicons {
     width: 18px;
     height: 18px;
     font-size: 18px;
 }
 
+/* Field Hints - Stripe Style */
+.wpai-field-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--stripe-text-muted);
+    margin-top: 8px;
+}
+
+.wpai-field-hint a {
+    color: var(--stripe-primary);
+    text-decoration: none;
+}
+
+.wpai-field-hint a:hover {
+    text-decoration: underline;
+}
+
+.wpai-field-hint.wpai-success {
+    color: var(--stripe-success);
+    font-weight: 500;
+}
+
+.wpai-field-hint .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+
 /* ═══════════════════════════════════════════════════════════
-   BUTTONS
+   API KEY WRAPPER - MODERN DESIGN
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-api-key-wrapper {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: var(--stripe-card);
+    border: 2px solid var(--stripe-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: var(--stripe-transition);
+}
+
+.wpai-api-key-wrapper:focus-within {
+    border-color: var(--stripe-primary);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.wpai-api-key-input {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    min-height: 52px;
+}
+
+.wpai-key-icon {
+    font-size: 20px;
+    opacity: 0.7;
+}
+
+.wpai-input-key {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 15px;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    letter-spacing: 0.5px;
+    color: var(--stripe-text);
+    padding: 0;
+    outline: none;
+}
+
+.wpai-input-key::placeholder {
+    color: var(--stripe-text-muted);
+    font-family: inherit;
+}
+
+.wpai-api-key-actions {
+    display: flex;
+    border-left: 1px solid var(--stripe-border);
+}
+
+.wpai-key-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    background: var(--stripe-surface);
+    border: none;
+    cursor: pointer;
+    transition: var(--stripe-transition);
+    color: var(--stripe-text-secondary);
+}
+
+.wpai-key-btn:hover:not(:disabled) {
+    background: var(--stripe-primary);
+    color: #fff;
+}
+
+.wpai-key-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.wpai-key-btn:first-child {
+    border-right: 1px solid var(--stripe-border);
+}
+
+.wpai-key-btn .dashicons {
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+.wpai-key-btn.copied {
+    background: var(--stripe-success);
+    color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS - STRIPE STYLE
    ═══════════════════════════════════════════════════════════ */
 
 .wpai-actions {
     display: flex;
-    gap: 14px;
-    margin-top: 28px;
+    gap: 12px;
+    margin-top: 24px;
 }
 
 .wpai-btn {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 28px;
-    font-size: 15px;
-    font-weight: 700;
-    border-radius: var(--wpai-radius-sm);
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: var(--stripe-radius);
     cursor: pointer;
-    transition: var(--wpai-transition);
+    transition: var(--stripe-transition);
     border: none;
+    text-decoration: none;
+    line-height: 1.5;
 }
 
 .wpai-btn.button-primary,
 .wpai-btn-primary {
-    background: var(--wpai-gradient-hero);
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+    background: var(--stripe-primary);
+    color: #fff !important;
+    box-shadow: var(--stripe-shadow-sm);
 }
 
 .wpai-btn.button-primary:hover,
 .wpai-btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.45);
+    background: var(--stripe-primary-dark);
+    box-shadow: var(--stripe-shadow);
 }
 
 .wpai-btn-secondary {
-    background: #fff;
-    color: var(--wpai-slate-600);
-    border: 2px solid var(--wpai-slate-200);
+    background: var(--stripe-card);
+    color: var(--stripe-text) !important;
+    border: 1px solid var(--stripe-border);
 }
 
 .wpai-btn-secondary:hover {
-    background: var(--wpai-slate-50);
-    border-color: var(--wpai-slate-300);
+    background: var(--stripe-surface);
+    border-color: var(--stripe-text-muted);
 }
 
-.wpai-btn-secondary .dashicons {
-    width: 18px;
-    height: 18px;
-    font-size: 18px;
+.wpai-btn .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+
+/* Field Actions - Stripe */
+.wpai-field-actions {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--stripe-border-light);
+}
+
+.wpai-btn-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--stripe-radius);
+    cursor: pointer;
+    transition: var(--stripe-transition);
+}
+
+.wpai-btn-outline {
+    background: var(--stripe-card);
+    color: var(--stripe-text-secondary);
+    border: 1px solid var(--stripe-border);
+}
+
+.wpai-btn-outline:hover {
+    background: var(--stripe-surface);
+    border-color: var(--stripe-primary);
+    color: var(--stripe-primary);
+}
+
+.wpai-btn-small .dashicons {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -301,40 +420,43 @@
 
 .wpai-steps {
     margin: 0;
-    padding-left: 0;
+    padding: 0;
     list-style: none;
-    counter-reset: step-counter;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
 }
 
 .wpai-steps li {
-    position: relative;
-    padding: 14px 0 14px 50px;
-    color: var(--wpai-slate-700);
-    font-size: 15px;
-    border-bottom: 1px solid var(--wpai-slate-100);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--admin-bg);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-secondary);
     counter-increment: step-counter;
-}
-
-.wpai-steps li:last-child {
-    border-bottom: none;
 }
 
 .wpai-steps li::before {
     content: counter(step-counter);
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 32px;
-    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--wpai-gradient-hero);
+    width: 28px;
+    height: 28px;
+    background: var(--gradient-green);
     color: #fff;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.wpai-steps li strong {
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -343,15 +465,17 @@
 
 .wpai-credits {
     text-align: center;
-    font-size: 13px;
-    color: var(--wpai-slate-500);
-    margin-top: 48px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-light);
 }
 
 .wpai-credits a {
-    color: var(--wpai-primary-600);
-    text-decoration: none;
+    color: var(--accent-purple);
     font-weight: 600;
+    text-decoration: none;
 }
 
 .wpai-credits a:hover {
@@ -359,30 +483,68 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   GENERATE BUTTON IN POSTS LIST
+   TOAST
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 14px 20px;
+    background: var(--text-primary);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    z-index: 999999;
+    font-size: 14px;
+    font-weight: 500;
+    animation: toastIn 0.3s ease;
+}
+
+.wpai-toast.success {
+    background: var(--gradient-green);
+}
+
+.wpai-toast.error {
+    background: linear-gradient(135deg, var(--accent-red) 0%, #dc2626 100%);
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GENERATE BUTTON (FAB)
    ═══════════════════════════════════════════════════════════ */
 
 .wpai-generate-btn {
     display: inline-flex !important;
     align-items: center !important;
     gap: 8px !important;
-    background: var(--wpai-gradient-hero) !important;
+    background: var(--gradient-primary) !important;
     color: #fff !important;
     border: none !important;
-    padding: 10px 20px !important;
-    border-radius: 10px !important;
-    font-weight: 700 !important;
+    padding: 10px 18px !important;
+    border-radius: var(--radius-sm) !important;
+    font-weight: 600 !important;
     font-size: 13px !important;
     cursor: pointer !important;
-    transition: var(--wpai-transition) !important;
-    text-decoration: none !important;
-    margin-left: 12px !important;
+    transition: var(--transition) !important;
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3) !important;
+    text-decoration: none !important;
 }
 
 .wpai-generate-btn:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4) !important;
+    box-shadow: 0 6px 18px rgba(139, 92, 246, 0.4) !important;
 }
 
 .wpai-generate-btn .dashicons {
@@ -391,48 +553,7 @@
     font-size: 18px;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   TOAST NOTIFICATIONS
-   ═══════════════════════════════════════════════════════════ */
-
-.wpai-toast {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    padding: 18px 28px;
-    background: var(--wpai-slate-800);
-    color: #fff;
-    border-radius: var(--wpai-radius-sm);
-    box-shadow: var(--wpai-shadow-xl);
-    z-index: 999999;
-    animation: wpaiSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.wpai-toast.success {
-    background: var(--wpai-gradient-success);
-}
-
-.wpai-toast.error {
-    background: linear-gradient(135deg, var(--wpai-error-500) 0%, #dc2626 100%);
-}
-
-@keyframes wpaiSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(30px) scale(0.9);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-/* Spinner */
+/* Spin Animation */
 .wpai-spin {
     animation: wpaiSpin 1s linear infinite;
 }
@@ -451,18 +572,22 @@
    RESPONSIVE
    ═══════════════════════════════════════════════════════════ */
 
-@media (max-width: 782px) {
+@media (max-width: 600px) {
     .wpai-settings-wrap {
-        padding: 0 10px;
+        padding: 0 12px;
         margin: 20px auto;
     }
 
     .wpai-settings-header {
-        padding: 28px 20px;
+        padding: 24px 20px;
     }
 
     .wpai-settings-header h1 {
-        font-size: 24px;
+        font-size: 20px;
+    }
+
+    .wpai-card-body {
+        padding: 16px;
     }
 
     .wpai-actions {
@@ -473,7 +598,462 @@
         justify-content: center;
     }
 
-    .wpai-card-body {
+    .wpai-steps {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN TABS - STRIPE STYLE
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-admin-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-bottom: none;
+    border-radius: var(--stripe-radius-lg) var(--stripe-radius-lg) 0 0;
+    overflow: hidden;
+}
+
+.wpai-admin-tab {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--stripe-border-light);
+    color: var(--stripe-text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--stripe-transition);
+}
+
+.wpai-admin-tab:last-child {
+    border-right: none;
+}
+
+.wpai-admin-tab:hover {
+    color: var(--stripe-text);
+    background: var(--stripe-surface);
+}
+
+.wpai-admin-tab.active {
+    color: var(--stripe-primary);
+    background: var(--stripe-primary-bg);
+    font-weight: 600;
+}
+
+.wpai-admin-tab .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+.wpai-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 50%;
+    background: var(--stripe-border);
+    color: var(--stripe-text-muted);
+}
+
+.wpai-tab-badge.success {
+    background: var(--stripe-success);
+    color: #fff;
+}
+
+/* Admin Panels - Stripe */
+.wpai-admin-panel {
+    display: none;
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-top: none;
+    border-radius: 0 0 var(--stripe-radius-lg) var(--stripe-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--stripe-shadow);
+}
+
+.wpai-admin-panel.active {
+    display: block;
+}
+
+.wpai-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-direction: column;
+    gap: 4px;
+    padding: 20px 24px;
+    background: var(--stripe-surface);
+    border-bottom: 1px solid var(--stripe-border);
+}
+
+.wpai-panel-header.purple,
+.wpai-panel-header.blue,
+.wpai-panel-header.green {
+    background: var(--stripe-surface);
+}
+
+.wpai-panel-header h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--stripe-text);
+    letter-spacing: -0.01em;
+}
+
+.wpai-panel-header p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--stripe-text-secondary);
+}
+
+.wpai-panel-body {
+    padding: 24px;
+}
+
+/* Form Fields Improved */
+.wpai-admin-panel .wpai-field {
+    margin-bottom: 24px;
+}
+
+.wpai-admin-panel .wpai-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+}
+
+.wpai-admin-panel .wpai-input {
+    width: 100%;
+    max-width: 500px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.wpai-admin-panel .wpai-input:focus {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 0 3px var(--accent-indigo-light);
+    outline: none;
+}
+
+.wpai-admin-panel .wpai-select {
+    max-width: 500px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.wpai-admin-panel .wpai-input-group {
+    display: flex;
+    gap: 8px;
+    max-width: 500px;
+}
+
+.wpai-admin-panel .wpai-input-group .wpai-input {
+    max-width: none;
+}
+
+/* Gemini Features List - Stripe Style */
+.wpai-gemini-features {
+    background: var(--stripe-info-bg);
+    border: 1px solid #b3e5fc;
+    border-radius: var(--stripe-radius-md);
+    padding: 16px 20px;
+    margin: 20px 0;
+}
+
+.wpai-gemini-features h4 {
+    margin: 0 0 12px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stripe-info);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.wpai-gemini-features ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wpai-gemini-features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.8);
+    border-radius: var(--stripe-radius);
+    font-size: 13px;
+    color: var(--stripe-text);
+    font-weight: 400;
+}
+
+.wpai-gemini-features .dashicons {
+    color: var(--stripe-success);
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Pipeline Grid - Stripe Style */
+.wpai-pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.wpai-agent-card {
+    position: relative;
+    background: var(--stripe-card);
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-md);
+    padding: 20px 16px;
+    text-align: center;
+    transition: var(--stripe-transition);
+}
+
+.wpai-agent-card:hover {
+    border-color: var(--stripe-primary);
+    box-shadow: var(--stripe-shadow-md);
+}
+
+.wpai-agent-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 12px;
+    background: var(--stripe-surface);
+    border-radius: var(--stripe-radius-md);
+    font-size: 22px;
+    transition: var(--stripe-transition);
+}
+
+.wpai-agent-card:hover .wpai-agent-icon {
+    background: var(--stripe-primary-bg);
+}
+
+.wpai-agent-card h4 {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--stripe-text);
+}
+
+.wpai-agent-card p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--stripe-text-secondary);
+    line-height: 1.4;
+}
+
+/* Actions Bar - Stripe Style */
+.wpai-settings-form .wpai-actions {
+    margin-top: 24px;
+    padding: 20px 24px;
+    background: var(--stripe-surface);
+    border: 1px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-lg);
+}
+
+@media (max-width: 768px) {
+    .wpai-admin-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .wpai-admin-tab {
+        padding: 14px 20px;
+        white-space: nowrap;
+        font-size: 13px;
+    }
+    
+    .wpai-panel-body {
         padding: 20px;
     }
+    
+    .wpai-pipeline-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    
+    .wpai-agent-card {
+        padding: 18px 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .wpai-pipeline-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .wpai-panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   POST TYPES GRID - SELEÇÃO DE CPTs
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-label-main {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--stripe-text);
+    margin-bottom: 4px;
+}
+
+.wpai-field-desc {
+    font-size: 13px;
+    color: var(--stripe-text-secondary);
+    margin: 0 0 16px 0;
+}
+
+.wpai-post-types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.wpai-post-type-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--stripe-card);
+    border: 2px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-md);
+    cursor: pointer;
+    transition: var(--stripe-transition);
+}
+
+.wpai-post-type-item:hover {
+    border-color: var(--stripe-primary);
+    background: var(--stripe-primary-bg);
+}
+
+.wpai-post-type-item input[type="checkbox"] {
+    display: none;
+}
+
+.wpai-pt-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--stripe-surface);
+    border: 2px solid var(--stripe-border);
+    border-radius: var(--stripe-radius-sm);
+    flex-shrink: 0;
+    transition: var(--stripe-transition);
+}
+
+.wpai-pt-checkbox .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    color: transparent;
+    transition: var(--stripe-transition);
+}
+
+.wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox {
+    background: var(--stripe-primary);
+    border-color: var(--stripe-primary);
+}
+
+.wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox .dashicons {
+    color: #fff;
+}
+
+.wpai-pt-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.wpai-pt-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--stripe-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wpai-pt-slug {
+    font-size: 11px;
+    color: var(--stripe-text-muted);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+/* Header laranja para Post Types */
+.wpai-panel-header.orange {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border-bottom: 1px solid #fed7aa;
+}
+
+.wpai-panel-header.orange h2 {
+    color: #c2410c;
+}
+
+.wpai-panel-header.orange p {
+    color: #ea580c;
+}
+
+@media (max-width: 600px) {
+    .wpai-post-types-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .wpai-post-type-item {
+        padding: 12px 14px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ESCONDER NOTIFICACOES DE OUTROS PLUGINS
+   ═══════════════════════════════════════════════════════════ */
+
+.wpai-settings-wrap .notice,
+.wpai-settings-wrap .updated,
+.wpai-settings-wrap .error,
+.wpai-settings-wrap .notice-warning,
+.wpai-settings-wrap .notice-info,
+.wpai-settings-wrap .notice-success,
+.wpai-settings-wrap .notice-error,
+.wpai-settings-wrap div[class*="rank-math"],
+.wpai-settings-wrap div[class*="rankmath"],
+.wpai-settings-wrap .rank-math-notice,
+.wpai-settings-wrap .wpseo-notice,
+.wpai-settings-wrap .yoast-notice {
+    display: none !important;
 }

@@ -13,22 +13,33 @@ if (!defined('ABSPATH'))
 class WPAI_Multi_Agent
 {
     private const MAX_ITERATIONS = 3;
-    private $openai;
+    private $ai_client;
+    private $text_ai = 'openai';
     private $execution_log = [];
     private $params = [];
 
     public function __construct()
     {
-        $this->openai = new WPAI_OpenAI_Client();
+        // Cliente sera definido no run_pipeline baseado na escolha do usuario
     }
 
     public function run_pipeline($params)
     {
         $this->params = $params;
         $this->execution_log = [];
+        $this->text_ai = $params['text_ai'] ?? 'openai';
 
-        if (!$this->openai->has_api_key()) {
-            return new WP_Error('no_api_key', __('Configure a API Key da OpenAI.', 'wp-ai-post-generator'));
+        // Inicializa o cliente de IA baseado na escolha
+        if ($this->text_ai === 'gemini') {
+            $this->ai_client = new WPAI_Gemini_Client();
+            if (!$this->ai_client->has_api_key()) {
+                return new WP_Error('no_api_key', __('Configure a API Key do Gemini.', 'wp-ai-post-generator'));
+            }
+        } else {
+            $this->ai_client = new WPAI_OpenAI_Client();
+            if (!$this->ai_client->has_api_key()) {
+                return new WP_Error('no_api_key', __('Configure a API Key da OpenAI.', 'wp-ai-post-generator'));
+            }
         }
 
         // Etapa 1: Interpretação
@@ -49,7 +60,7 @@ class WPAI_Multi_Agent
         }
         $this->log_step('first_draft', 'completed', $article);
 
-        // Etapa 3: Revisão
+        // Etapa 3: Revisao
         $iteration = 0;
         $approved = false;
         $reviews = [];
@@ -79,7 +90,20 @@ class WPAI_Multi_Agent
             }
         }
 
-        // Etapa 4: Gerar Títulos SEO
+        // Etapa 3.5: Gerar prompt de thumbnail junto com revisao (otimizacao)
+        $thumbnail_prompt = null;
+        $thumbnail_data = null;
+        $generate_thumb = !empty($params['generate_thumbnail']) && $params['generate_thumbnail'] === true;
+        
+        if ($generate_thumb) {
+            $this->log_step('thumbnail_prompt', 'started');
+            $thumbnail_prompt = $this->run_thumbnail_agent($article, $briefing, null);
+            if (!is_wp_error($thumbnail_prompt)) {
+                $this->log_step('thumbnail_prompt', 'completed', $thumbnail_prompt);
+            }
+        }
+
+        // Etapa 4: Gerar Titulos SEO
         $this->log_step('titles', 'started');
         $titles = $this->run_title_generator($article, $briefing);
         if (is_wp_error($titles)) {
@@ -97,17 +121,15 @@ class WPAI_Multi_Agent
         }
         $this->log_step('seo', 'completed', $seo_data);
 
-        // Etapa 6: Gerar Prompt de Thumbnail (se solicitado)
-        $thumbnail_prompt = null;
-        if (!empty($params['generate_thumbnail']) && $params['generate_thumbnail'] === true) {
-            $this->log_step('thumbnail', 'started');
-            $thumbnail_prompt = $this->run_thumbnail_agent($article, $briefing, $seo_data);
-            if (is_wp_error($thumbnail_prompt)) {
-                $this->log_step('thumbnail', 'error', $thumbnail_prompt->get_error_message());
-                // Não falhar o pipeline por causa da thumbnail
-                $thumbnail_prompt = null;
+        // Etapa 6: Gerar imagem da thumbnail (ja com prompt pronto)
+        if ($generate_thumb && !empty($thumbnail_prompt)) {
+            $this->log_step('thumbnail_image', 'started');
+            $thumbnail_data = $this->generate_thumbnail_image($thumbnail_prompt, $params);
+            if (!is_wp_error($thumbnail_data)) {
+                $this->log_step('thumbnail_image', 'completed');
             } else {
-                $this->log_step('thumbnail', 'completed', $thumbnail_prompt);
+                $this->log_step('thumbnail_image', 'error', $thumbnail_data->get_error_message());
+                $thumbnail_data = null;
             }
         }
 
@@ -121,6 +143,7 @@ class WPAI_Multi_Agent
             'titles' => $titles,
             'seo' => $seo_data,
             'thumbnail_prompt' => $thumbnail_prompt,
+            'thumbnail_data' => $thumbnail_data,
             'execution_log' => $this->execution_log,
         ];
     }
@@ -149,9 +172,49 @@ Analise o input e crie um briefing completo incluindo:
 Responda em português brasileiro de forma estruturada.
 PROMPT;
 
-        $tone_map = ['Neutro' => 'neutro e objetivo', 'Profissional' => 'profissional e técnico', 'Humanizado' => 'humanizado e empático', 'Jornalístico' => 'jornalístico factual', 'Técnico' => 'técnico especializado', 'Marketing' => 'persuasivo e engajante', 'Storytelling' => 'narrativo envolvente'];
-        $type_map = ['Notícia' => 'notícia jornalística atualizada', 'Resumo' => 'resumo informativo completo', 'Artigo' => 'artigo de blog aprofundado', 'Review' => 'review/análise detalhada', 'Tutorial' => 'tutorial passo a passo prático'];
-        $person_map = ['Primeira pessoa' => 'primeira pessoa (eu/nós)', 'Segunda pessoa' => 'segunda pessoa (você)', 'Terceira pessoa' => 'terceira pessoa impessoal'];
+        // Mapeamento de tons
+        $tone_map = [
+            'auto' => 'escolha o tom mais adequado ao contexto',
+            'neutro' => 'neutro e objetivo',
+            'profissional' => 'profissional e técnico',
+            'informal' => 'informal e descontraído',
+            'informativo' => 'informativo e educacional',
+            'jornalistico' => 'jornalístico factual e imparcial',
+            'marketing' => 'persuasivo e engajante para conversão',
+            'energetico' => 'energético e vibrante',
+            'amigavel' => 'amigável e acolhedor',
+            'serio' => 'sério e formal',
+            'otimista' => 'otimista e positivo',
+            'pensativo' => 'pensativo e reflexivo',
+            'esperancoso' => 'esperançoso e inspirador'
+        ];
+        
+        // Mapeamento de tipos de conteúdo
+        $type_map = [
+            'auto' => 'escolha o formato mais adequado',
+            'artigo' => 'artigo de blog aprofundado e completo',
+            'sumario' => 'sumário executivo com pontos-chave',
+            'noticia' => 'notícia jornalística atualizada',
+            'listicle' => 'listicle com itens numerados e organizados',
+            'tutorial' => 'tutorial passo a passo prático',
+            'review' => 'review/análise detalhada com prós e contras',
+            'entrevista' => 'formato de entrevista com perguntas e respostas',
+            'aida' => 'estrutura AIDA (Atenção, Interesse, Desejo, Ação)'
+        ];
+        
+        // Mapeamento de pessoa narrativa
+        $person_map = [
+            'auto' => 'escolha a pessoa mais adequada',
+            '1s' => 'primeira pessoa do singular (eu, meu, minha)',
+            '1p' => 'primeira pessoa do plural (nós, nosso, nossa)',
+            '2' => 'segunda pessoa (você, seu, sua)',
+            '3' => 'terceira pessoa impessoal (ele, ela, eles)'
+        ];
+
+        // Obter valores com fallback
+        $tone_val = $tone_map[$this->params['tone']] ?? $tone_map['neutro'];
+        $type_val = $type_map[$this->params['writing_type']] ?? $type_map['artigo'];
+        $person_val = $person_map[$this->params['person_type']] ?? $person_map['3'];
 
         $prompt = <<<PROMPT
 Crie um briefing SEO completo para:
@@ -160,57 +223,73 @@ Crie um briefing SEO completo para:
 **CONTEXTO/ASSUNTO:** {$this->params['subject_context']}
 
 **ESPECIFICAÇÕES:**
-- Tom de voz: {$tone_map[$this->params['tone']]}
-- Tipo de texto: {$type_map[$this->params['writing_type']]}
-- Pessoa narrativa: {$person_map[$this->params['person_type']]}
+- Tom de voz: {$tone_val}
+- Tipo de texto: {$type_val}
+- Pessoa narrativa: {$person_val}
 - Extensão: aproximadamente {$this->params['word_count']} palavras (conteúdo longo ranqueia melhor)
 
 Lembre-se: O conteúdo deve demonstrar EXPERIÊNCIA real no assunto, seguindo E-E-A-T do Google.
 PROMPT;
 
-        $response = $this->openai->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.5]);
+        $response = $this->ai_client->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.5]);
         return is_wp_error($response) ? $response : $response['content'];
     }
 
     private function run_writer_agent($briefing, $feedback = null)
     {
         $system = <<<PROMPT
-Você é o WriterAgent, um redator SEO especialista com anos de experiência em criar conteúdo que ranqueia no Google.
+Você é o WriterAgent, um redator SEO especialista otimizado para Rank Math SEO.
 
-**REGRAS OBRIGATÓRIAS PARA SEO:**
+**REGRAS OBRIGATÓRIAS PARA RANK MATH SEO:**
 
-1. ESTRUTURA:
-   - Use H2 e H3 estrategicamente (palavras-chave nos headings)
-   - Parágrafos curtos (2-4 linhas) para melhor leitura
-   - Use listas (ul/ol) quando apropriado
-   - Inclua uma seção de FAQ com 3-5 perguntas no final
+1. ESTRUTURA OTIMIZADA:
+   - OBRIGATÓRIO: Comece com um sumário/índice após o primeiro parágrafo usando:
+     <div class="wp-block-rank-math-toc-block"><h2>Índice</h2><nav><ul><li><a href="#secao1">Seção 1</a></li>...</ul></nav></div>
+   - Use H2 e H3 com IDs para âncoras (ex: <h2 id="secao1">Título com Palavra-chave</h2>)
+   - Parágrafos curtos (2-4 linhas máximo)
+   - Use listas (ul/ol) para melhor escaneabilidade
+   - Inclua FAQ no final com schema markup
 
-2. CONTEÚDO:
-   - Primeira frase deve capturar atenção e conter palavra-chave
-   - Demonstre EXPERIÊNCIA real no assunto (E-E-A-T)
-   - Seja específico, use dados, exemplos, estatísticas quando possível
-   - Responda completamente à intenção de busca
-   - Conteúdo original e profundo, não superficial
+2. PALAVRA-CHAVE (CRÍTICO PARA RANK MATH):
+   - Palavra-chave EXATA nos primeiros 10% do conteúdo (primeiro parágrafo)
+   - Palavra-chave em pelo menos 2 subtítulos H2/H3
+   - Densidade de 0.5-1.5% (aparecer 5-10x em 1500 palavras)
+   - Use variações e sinônimos naturalmente
 
-3. ESCRITA HUMANIZADA:
-   - NÃO use clichês de IA: "No mundo atual", "Em um cenário onde", "É importante destacar"
-   - NÃO use excesso de advérbios: "realmente", "certamente", "absolutamente"
-   - Varie o tamanho das frases naturalmente
-   - Use transições naturais entre parágrafos
-   - Escreva como um humano especialista falaria
+3. LINKS (OBRIGATÓRIO):
+   - Inclua 2-3 links EXTERNOS relevantes (fontes confiáveis como Wikipedia, sites .gov, .edu)
+     Formato: <a href="URL" target="_blank" rel="dofollow">texto âncora</a>
+   - Inclua 1-2 sugestões de links INTERNOS com placeholder:
+     [LINK_INTERNO: texto âncora sugerido]
 
-4. FORMATAÇÃO HTML:
-   - Use: h2, h3, p, ul, ol, li, strong, em
-   - NÃO inclua h1 (título principal)
-   - NÃO use tags desnecessárias
+4. IMAGENS (OBRIGATÓRIO):
+   - Inclua 2-3 placeholders de imagem com alt text contendo palavra-chave:
+     [IMAGEM: descrição detalhada | alt="texto com palavra-chave"]
 
-5. SEO ON-PAGE:
-   - Palavra-chave no primeiro parágrafo
-   - Palavras-chave naturalmente distribuídas (densidade 1-2%)
-   - Palavras-chave LSI/semânticas relacionadas
-   - Subtítulos informativos e com palavras-chave
+5. CONTEÚDO E-E-A-T:
+   - Demonstre EXPERIÊNCIA real no assunto
+   - Use dados, estatísticas e exemplos específicos
+   - Cite fontes quando possível
+   - Conteúdo profundo e completo
 
-Responda APENAS com o conteúdo HTML do artigo, sem explicações.
+6. ESCRITA HUMANIZADA:
+   - PROIBIDO: "No mundo atual", "Em um cenário onde", "É importante destacar"
+   - PROIBIDO: excesso de "realmente", "certamente", "absolutamente"
+   - Varie tamanho das frases naturalmente
+   - Escreva como especialista humano
+
+7. FAQ SCHEMA (NO FINAL):
+   <div class="rank-math-faq-block">
+   <div class="rank-math-faq-item"><h3 class="rank-math-question">Pergunta com palavra-chave?</h3>
+   <div class="rank-math-answer">Resposta completa de 40-60 palavras.</div></div>
+   </div>
+
+**FORMATO DE SAÍDA (CRÍTICO):**
+- Responda APENAS com o HTML puro do artigo
+- NÃO use blocos de código markdown (```html ou ```)
+- NÃO inclua explicações antes ou depois do HTML
+- O conteúdo deve ser compatível com o editor Gutenberg do WordPress
+- Comece diretamente com a primeira tag HTML (ex: <p> ou <div>)
 PROMPT;
 
         $prompt = "**BRIEFING SEO:**\n{$briefing}\n\n";
@@ -221,95 +300,134 @@ PROMPT;
 
         $prompt .= "Escreva agora o artigo completo otimizado para SEO, seguindo todas as regras.";
 
-        $response = $this->openai->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.7, 'max_tokens' => 4096]);
-        return is_wp_error($response) ? $response : $response['content'];
+        $response = $this->ai_client->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.7, 'max_tokens' => 4096]);
+        
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        
+        // Limpa marcacoes markdown do HTML
+        $content = $response['content'];
+        $content = preg_replace('/^```html\s*/i', '', $content);
+        $content = preg_replace('/^```\s*/i', '', $content);
+        $content = preg_replace('/\s*```$/i', '', $content);
+        $content = trim($content);
+        
+        return $content;
     }
 
     private function run_reviewer_agent($article, $briefing)
     {
         $system = <<<PROMPT
-Você é o ReviewerAgent, um especialista em SEO e qualidade de conteúdo.
+Você é o ReviewerAgent, especialista em Rank Math SEO. Avalie usando o CHECKLIST RANK MATH:
 
-Avalie o artigo usando estes critérios:
+**CHECKLIST RANK MATH SEO (verifique cada item):**
 
-1. **SEO On-Page (0-10):**
-   - Uso adequado de headings (H2, H3)
-   - Palavras-chave bem distribuídas
-   - Estrutura escaneável
+1. **SEO BÁSICO:**
+   - [ ] Palavra-chave nos primeiros 10% do conteúdo?
+   - [ ] Palavra-chave aparece no conteúdo com densidade 0.5-1.5%?
+   - [ ] Conteúdo tem 1000+ palavras?
 
-2. **Qualidade E-E-A-T (0-10):**
-   - Demonstra experiência no assunto
-   - Conteúdo aprofundado e útil
-   - Informações precisas
+2. **ESTRUTURA:**
+   - [ ] Possui Table of Contents/Sumário?
+   - [ ] Palavra-chave em pelo menos 1 subtítulo H2/H3?
+   - [ ] Parágrafos curtos (2-4 linhas)?
 
-3. **Humanização (0-10):**
-   - Linguagem natural (não robótica)
-   - Sem clichês de IA
-   - Fluidez de leitura
+3. **LINKS:**
+   - [ ] Possui links externos (DoFollow)?
+   - [ ] Possui sugestões de links internos?
 
-4. **Engajamento (0-10):**
-   - Captura atenção inicial
-   - Mantém interesse
-   - Call-to-action ou conclusão forte
+4. **IMAGENS:**
+   - [ ] Possui placeholders de imagem com alt text?
+   - [ ] Alt text contém palavra-chave?
+
+5. **FAQ:**
+   - [ ] Possui seção FAQ com schema markup?
+   - [ ] Perguntas contêm palavra-chave?
+
+6. **HUMANIZAÇÃO:**
+   - [ ] Sem clichês de IA?
+   - [ ] Linguagem natural e fluida?
+
+**SCORING:**
+- SEO Rank Math (0-10): Baseado no checklist acima
+- E-E-A-T (0-10): Experiência, expertise, autoridade
+- Humanização (0-10): Naturalidade da escrita
+- Engajamento (0-10): Captura e mantém atenção
 
 Responda em JSON:
 {
     "approved": true/false (aprove se média >= 8),
     "scores": {"seo": X, "eeat": X, "humanization": X, "engagement": X},
     "overall_score": X,
-    "issues": ["problema específico 1", "problema específico 2"],
-    "suggestions": ["melhoria específica 1", "melhoria específica 2"]
+    "rank_math_checklist": {
+        "keyword_in_first_10_percent": true/false,
+        "keyword_density_ok": true/false,
+        "has_toc": true/false,
+        "keyword_in_subheadings": true/false,
+        "has_external_links": true/false,
+        "has_internal_links": true/false,
+        "has_images_with_alt": true/false,
+        "has_faq": true/false
+    },
+    "issues": ["problema específico"],
+    "suggestions": ["melhoria específica para Rank Math"]
 }
 PROMPT;
 
         $prompt = "BRIEFING:\n{$briefing}\n\nARTIGO:\n{$article}\n\nAnalise criticamente.";
 
-        $response = $this->openai->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.3]);
+        $response = $this->ai_client->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.3]);
         return is_wp_error($response) ? $response : $response['content'];
     }
 
     private function run_title_generator($article, $briefing)
     {
         $system = <<<PROMPT
-Você é um especialista em copywriting e SEO focado em criar títulos CURTOS e impactantes.
+Você é especialista em títulos SEO otimizados para Rank Math.
 
-Crie 5 títulos para o artigo seguindo RIGOROSAMENTE estas regras:
+**REGRAS RANK MATH PARA TÍTULOS (CRÍTICO):**
 
-**REGRAS DE TÍTULOS (OBRIGATÓRIO):**
-1. MÁXIMO 45-55 caracteres (NUNCA exceder 55!)
-2. Palavra-chave principal NO INÍCIO
-3. Conciso e direto ao ponto
-4. Sem palavras desnecessárias (artigos, preposições)
-5. Gatilho emocional ou numérico quando possível
-6. Evite títulos genéricos ou vagos
+1. **PALAVRA-CHAVE NO INÍCIO** (obrigatório):
+   - A palavra-chave DEVE estar nas primeiras 3-4 palavras
+   - Exemplo: "Marketing Digital: 7 Estratégias para 2024"
+   - NÃO: "7 Estratégias de Marketing Digital" (keyword no final)
 
-**ESTILOS (um de cada):**
-- Informativo direto: "Marketing Digital: Guia Completo 2024"
-- Lista/Número: "7 Estratégias de SEO para Ranquear"
-- Pergunta: "Como Aumentar Vendas Online?"
-- Benefício claro: "Dobre seu Tráfego com Essas Técnicas"
-- Urgência: "O Que Mudou no SEO em 2024"
+2. **INCLUIR NÚMERO** (obrigatório para 2 dos 4 títulos):
+   - Números aumentam CTR em 36%
+   - Use: 5, 7, 10, 15, 21 (números ímpares performam melhor)
+   - Exemplos: "7 Dicas", "10 Passos", "5 Erros"
 
-IMPORTANTE: Conte os caracteres. Se passar de 55, REESCREVA mais curto.
+3. **LIMITE DE CARACTERES:**
+   - MÁXIMO 55 caracteres (ideal: 50-55)
+   - Conte os caracteres ANTES de finalizar
+
+4. **FORMATO IDEAL:**
+   - [Palavra-chave]: [Número] [Benefício] [Ano/Contexto]
+   - "SEO para E-commerce: 7 Técnicas que Funcionam em 2024"
+
+**GERE 4 TÍTULOS:**
+1. Com número + keyword no início
+2. Com número + keyword no início (variação)
+3. Pergunta com keyword no início
+4. Benefício direto com keyword no início
 
 Responda APENAS em JSON:
 {
     "titles": [
-        {"title": "Título Curto Aqui", "style": "informativo", "characters": XX},
-        {"title": "Título Curto Aqui", "style": "lista", "characters": XX},
-        {"title": "Título Curto Aqui", "style": "pergunta", "characters": XX},
-        {"title": "Título Curto Aqui", "style": "benefício", "characters": XX},
-        {"title": "Título Curto Aqui", "style": "urgência", "characters": XX}
+        {"title": "Keyword: 7 Benefícios...", "style": "numero", "characters": XX, "has_number": true, "keyword_position": "inicio"},
+        {"title": "Keyword: 10 Passos...", "style": "numero", "characters": XX, "has_number": true, "keyword_position": "inicio"},
+        {"title": "Keyword: Como...?", "style": "pergunta", "characters": XX, "has_number": false, "keyword_position": "inicio"},
+        {"title": "Keyword: Guia...", "style": "beneficio", "characters": XX, "has_number": false, "keyword_position": "inicio"}
     ],
-    "recommended": 0
+    "recommended": 0,
+    "focus_keyword": "palavra-chave identificada"
 }
-
-"recommended" é o índice (0-4) do título que mais recomenda.
 PROMPT;
 
-        $prompt = "BRIEFING:\n" . substr($briefing, 0, 1000) . "\n\nARTIGO (resumo):\n" . substr($article, 0, 1500) . "\n\nGere 5 títulos profissionais.";
+        $prompt = "BRIEFING:\n" . substr($briefing, 0, 1000) . "\n\nARTIGO (resumo):\n" . substr($article, 0, 1500) . "\n\nGere 4 títulos profissionais.";
 
-        $response = $this->openai->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.8]);
+        $response = $this->ai_client->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.8]);
 
         if (is_wp_error($response))
             return $response;
@@ -329,59 +447,73 @@ PROMPT;
     private function run_seo_agent($article, $briefing)
     {
         $system = <<<PROMPT
-Você é um especialista em SEO técnico para Rank Math e Google.
+Você é especialista em Rank Math SEO. Gere metadados que passem em TODOS os testes do Rank Math.
 
-Gere metadados SEO CURTOS e OTIMIZADOS seguindo RIGOROSAMENTE estas regras:
+**CHECKLIST RANK MATH - TODOS OBRIGATÓRIOS:**
 
-**META TITLE (SEO Title):**
-- MÁXIMO 50-55 caracteres (NUNCA exceder 55)
-- Palavra-chave principal no início
-- Conciso e impactante
-- NÃO incluir nome do site
+**1. META TITLE (SEO Title) - CRÍTICO:**
+- Palavra-chave EXATA no INÍCIO (primeiras 3-4 palavras)
+- DEVE conter um NÚMERO (ex: "7 Dicas", "10 Passos")
+- MÁXIMO 55 caracteres
+- Formato: "[Keyword]: [Número] [Benefício]"
+- Exemplo: "Marketing Digital: 7 Estratégias Essenciais"
 
-**META DESCRIPTION:**
-- EXATAMENTE entre 120-145 caracteres (NUNCA exceder 145)
-- Palavra-chave no início
-- Uma frase clara e direta
-- Call-to-action implícito no final
+**2. META DESCRIPTION - CRÍTICO:**
+- Palavra-chave EXATA no INÍCIO (primeiras palavras)
+- Entre 120-145 caracteres (ideal: 140)
+- Call-to-action no final
+- Exemplo: "Marketing digital explicado! Descubra 7 estratégias comprovadas para aumentar suas vendas online. Confira agora!"
 
-**FOCUS KEYWORD:**
-- Palavra-chave principal CURTA (2-3 palavras apenas)
-- Termo que as pessoas realmente buscam no Google
+**3. FOCUS KEYWORD:**
+- Palavra-chave principal CURTA (2-4 palavras)
+- Termo de busca real do Google
+- DEVE aparecer no meta_title e meta_description
 
-**SECONDARY KEYWORDS:**
-- 4-5 palavras-chave relacionadas
-- Termos curtos e específicos
-
-**SLUG SUGERIDO:**
+**4. SLUG/URL - CRÍTICO:**
+- DEVE conter a focus_keyword
 - Máximo 50 caracteres
-- Apenas palavras-chave essenciais
-- Sem stop words (de, do, da, para, etc)
+- Apenas hífens, sem stop words
+- Exemplo: "marketing-digital-estrategias"
 
-**FAQ:**
-- 3 perguntas extraídas do conteúdo
-- Respostas de 30-50 palavras
+**5. SECONDARY KEYWORDS:**
+- 4-5 variações/sinônimos da keyword
+- Termos LSI relacionados
 
-IMPORTANTE: Conte os caracteres ANTES de responder. Se exceder, reescreva mais curto.
+**6. TAGS:**
+- 5 tags relevantes
+- Incluir a focus_keyword como tag
+
+**VALIDAÇÃO ANTES DE RESPONDER:**
+- [ ] Focus keyword aparece no meta_title? (NO INÍCIO)
+- [ ] Focus keyword aparece na meta_description? (NO INÍCIO)
+- [ ] Focus keyword aparece no slug?
+- [ ] Meta title tem número?
+- [ ] Meta title <= 55 caracteres?
+- [ ] Meta description entre 120-145 caracteres?
 
 Responda APENAS em JSON:
 {
-    "meta_title": "Título curto até 55 chars",
-    "meta_description": "Descrição entre 120-145 caracteres exatos",
-    "focus_keyword": "keyword curta",
-    "secondary_keywords": ["kw1", "kw2", "kw3", "kw4"],
-    "slug": "slug-curto-otimizado",
+    "meta_title": "Keyword: 7 Benefício em 55 chars",
+    "meta_title_chars": XX,
+    "meta_description": "Keyword explicada! Descubra... Call-to-action. (120-145 chars)",
+    "meta_description_chars": XX,
+    "focus_keyword": "keyword principal",
+    "focus_keyword_in_title": true,
+    "focus_keyword_in_description": true,
+    "secondary_keywords": ["kw1", "kw2", "kw3", "kw4", "kw5"],
+    "tags": ["focus keyword", "tag2", "tag3", "tag4", "tag5"],
+    "slug": "keyword-principal-otimizado",
     "faq": [
-        {"question": "Pergunta 1?", "answer": "Resposta 1"},
+        {"question": "Pergunta com keyword?", "answer": "Resposta completa 40-60 palavras."},
         {"question": "Pergunta 2?", "answer": "Resposta 2"},
         {"question": "Pergunta 3?", "answer": "Resposta 3"}
     ]
 }
 PROMPT;
 
-        $prompt = "BRIEFING:\n" . substr($briefing, 0, 1000) . "\n\nARTIGO:\n" . substr($article, 0, 2500) . "\n\nGere os metadados SEO perfeitos.";
+        $prompt = "BRIEFING:\n" . substr($briefing, 0, 1000) . "\n\nARTIGO:\n" . substr($article, 0, 2500) . "\n\nGere os metadados SEO e TAGS perfeitos.";
 
-        $response = $this->openai->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.4]);
+        $response = $this->ai_client->chat_completion([['role' => 'user', 'content' => $prompt]], ['system' => $system, 'temperature' => 0.4]);
 
         if (is_wp_error($response))
             return $response;
@@ -399,6 +531,7 @@ PROMPT;
             'meta_description' => '',
             'focus_keyword' => '',
             'secondary_keywords' => [],
+            'tags' => [],
             'faq' => []
         ];
     }
@@ -495,60 +628,64 @@ PROMPT;
     }
 
     /**
-     * ThumbnailAgent - Especialista em criar prompts para thumbnails de blog
+     * ThumbnailAgent - Especialista em criar prompts para DALL-E e Gemini Imagen
      */
     private function run_thumbnail_agent($article, $briefing, $seo_data)
     {
         $system = <<<PROMPT
-Você é um especialista em design visual e criação de thumbnails para blogs profissionais.
+You are an expert AI image prompt engineer specializing in creating professional blog thumbnails using DALL-E 3 and Google Gemini Imagen.
 
-Sua função é criar um PROMPT PERFEITO para gerar uma imagem de destaque (thumbnail) impactante.
+Your task: Create a PERFECT image generation prompt that will produce a stunning, clickable blog thumbnail.
 
-**REGRAS PARA O PROMPT:**
+**PROMPT STRUCTURE (follow exactly):**
 
-1. DESCRIÇÃO VISUAL CLARA:
-   - Descreva a cena principal em detalhes
-   - Especifique cores, iluminação e atmosfera
-   - Mencione elementos visuais relevantes ao tema
+1. **STYLE PREFIX** (choose one):
+   - "Professional editorial photograph, "
+   - "Cinematic wide shot, "
+   - "High-end commercial photography, "
+   - "Hyperrealistic digital art, "
+   - "Modern minimalist illustration, "
 
-2. ESTILO:
-   - Fotografia profissional OU ilustração digital de alta qualidade
-   - Moderno, limpo e atrativo
-   - Adequado para blogs sérios e profissionais
+2. **MAIN SUBJECT**: Describe the central visual element that represents the article topic. Be specific and concrete.
 
-3. EVITAR:
-   - Texto na imagem (thumbnails não devem ter texto)
-   - Rostos reconhecíveis de pessoas reais
-   - Elementos confusos ou muito detalhados
-   - Marcas ou logos
+3. **COMPOSITION**: Camera angle, framing (rule of thirds, centered, etc.)
 
-4. FOCO:
-   - A imagem deve comunicar o tema do artigo instantaneamente
-   - Deve ser visualmente atraente em tamanhos pequenos
-   - Cores vibrantes mas profissionais
+4. **LIGHTING**: Golden hour, soft diffused, dramatic shadows, studio lighting, etc.
 
-Responda APENAS com o prompt em inglês (Gemini funciona melhor em inglês), formato texto puro, sem aspas ou formatação.
-Máximo 100 palavras.
+5. **COLOR PALETTE**: Specify 2-3 dominant colors that evoke the right mood.
+
+6. **ATMOSPHERE/MOOD**: Professional, inspiring, trustworthy, dynamic, etc.
+
+7. **TECHNICAL SPECS**: "8K resolution, sharp focus, depth of field, professional color grading"
+
+**STRICT RULES:**
+- NO text, letters, words, or typography in the image
+- NO recognizable faces or real people
+- NO logos, brands, or watermarks
+- Focus on symbolic/metaphorical representation of the topic
+- Image must be impactful at small sizes (thumbnail)
+- Use English only
+
+**OUTPUT FORMAT:**
+Single paragraph, 80-120 words, no quotes, no bullet points.
 PROMPT;
 
-        $focus_keyword = $seo_data['focus_keyword'] ?? '';
-        $meta_desc = $seo_data['meta_description'] ?? '';
+        $focus_keyword = $seo_data['focus_keyword'] ?? $this->params['desired_title'];
+        $summary = $this->extract_summary($article);
 
         $prompt = <<<PROMPT
-Crie um prompt para gerar a thumbnail perfeita para este artigo:
+Create a professional DALL-E/Gemini image prompt for this article:
 
-**TEMA PRINCIPAL:** {$this->params['desired_title']}
-**PALAVRA-CHAVE:** {$focus_keyword}
-**CONTEXTO:** {$meta_desc}
-**RESUMO DO ARTIGO:** 
-{$this->extract_summary($article)}
+TITLE: {$this->params['desired_title']}
+MAIN TOPIC: {$focus_keyword}
+ARTICLE SUMMARY: {$summary}
 
-Gere o prompt em inglês, focando em criar uma imagem profissional e impactante.
+Generate a detailed, professional image prompt following the exact structure provided. The image should instantly communicate the article's theme and be visually striking as a blog thumbnail.
 PROMPT;
 
-        $response = $this->openai->chat_completion(
+        $response = $this->ai_client->chat_completion(
             [['role' => 'user', 'content' => $prompt]],
-            ['system' => $system, 'temperature' => 0.7, 'max_tokens' => 300]
+            ['system' => $system, 'temperature' => 0.8, 'max_tokens' => 400]
         );
 
         if (is_wp_error($response)) {
@@ -557,9 +694,10 @@ PROMPT;
 
         // Limpar e retornar o prompt
         $thumbnail_prompt = trim($response['content']);
-        $thumbnail_prompt = preg_replace('/^["\']|["\']$/m', '', $thumbnail_prompt); // Remove aspas
+        $thumbnail_prompt = preg_replace('/^["\']|["\']$/m', '', $thumbnail_prompt);
+        $thumbnail_prompt = preg_replace('/^(Prompt:|Image Prompt:)/i', '', $thumbnail_prompt);
 
-        return $thumbnail_prompt;
+        return trim($thumbnail_prompt);
     }
 
     /**
@@ -577,6 +715,100 @@ PROMPT;
         $summary = preg_replace('/\s+\S*$/', '', $summary);
 
         return $summary . '...';
+    }
+
+    // Gera a imagem da thumbnail usando o provider selecionado
+    private function generate_thumbnail_image($prompt, $params)
+    {
+        $provider = $params['thumbnail_provider'] ?? 'gemini';
+        $format = $params['thumbnail_format'] ?? '16:9';
+        
+        $result = null;
+        
+        if ($provider === 'dalle') {
+            $openai = new WPAI_OpenAI_Client();
+            $size = $this->format_to_dalle_size($format);
+            $result = $openai->generate_image($prompt, $size);
+        } else {
+            // Gemini como padrao
+            $gemini = new WPAI_Gemini_Client();
+            $result = $gemini->generate_image($prompt, $format);
+        }
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        // Otimiza a imagem (reduz tamanho)
+        $optimized = $this->optimize_image_data($result);
+        
+        return $optimized;
+    }
+
+    // Converte formato para tamanho DALL-E
+    private function format_to_dalle_size($format)
+    {
+        $sizes = [
+            '1:1' => '1024x1024',
+            '16:9' => '1792x1024',
+            '9:16' => '1024x1792',
+            '4:3' => '1792x1024',
+            '3:4' => '1024x1792',
+        ];
+        return $sizes[$format] ?? '1792x1024';
+    }
+
+    // Otimiza dados da imagem (reduz tamanho para preview)
+    private function optimize_image_data($image_result)
+    {
+        if (!isset($image_result['data'])) {
+            return $image_result;
+        }
+        
+        $image_data = base64_decode($image_result['data']);
+        $mime_type = $image_result['mime_type'] ?? 'image/png';
+        
+        // Cria imagem a partir dos dados
+        $source = imagecreatefromstring($image_data);
+        if (!$source) {
+            return $image_result;
+        }
+        
+        $orig_width = imagesx($source);
+        $orig_height = imagesy($source);
+        
+        // Redimensiona para max 800px de largura (para preview)
+        $max_width = 800;
+        if ($orig_width > $max_width) {
+            $ratio = $max_width / $orig_width;
+            $new_width = $max_width;
+            $new_height = (int)($orig_height * $ratio);
+            
+            $resized = imagecreatetruecolor($new_width, $new_height);
+            imagealphablending($resized, false);
+            imagesavealpha($resized, true);
+            imagecopyresampled($resized, $source, 0, 0, 0, 0, $new_width, $new_height, $orig_width, $orig_height);
+            
+            // Converte para JPEG com qualidade 85 (menor tamanho)
+            ob_start();
+            imagejpeg($resized, null, 85);
+            $optimized_data = ob_get_clean();
+            
+            imagedestroy($resized);
+            imagedestroy($source);
+            
+            return [
+                'success' => true,
+                'data' => base64_encode($optimized_data),
+                'data_original' => $image_result['data'],
+                'mime_type' => 'image/jpeg',
+                'width' => $new_width,
+                'height' => $new_height,
+            ];
+        }
+        
+        imagedestroy($source);
+        return $image_result;
     }
 }
 

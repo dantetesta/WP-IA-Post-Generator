@@ -24,6 +24,10 @@
         init: function () {
             this.createModal();
             this.bindEvents();
+            // Só carrega categorias se o post type suportar
+            if (wpaiPostGen.hasCategories) {
+                this.loadCategories();
+            }
         },
 
         createModal: function () {
@@ -41,7 +45,7 @@
                     <div class="wpai-modal" role="dialog" aria-modal="true">
                         <!-- Header -->
                         <div class="wpai-modal-header">
-                            <h2><span class="dashicons dashicons-superhero-alt"></span> Criar Post com IA</h2>
+                            <h2><span class="dashicons dashicons-superhero-alt"></span> Criar ${wpaiPostGen.currentPostTypeLabel || 'Post'} com IA</h2>
                             <button type="button" class="wpai-modal-close" aria-label="Fechar">
                                 <span class="dashicons dashicons-no-alt"></span>
                             </button>
@@ -73,6 +77,10 @@
                                 <span class="dashicons dashicons-format-image"></span>
                                 <span>Imagem</span>
                             </button>
+                            <button class="wpai-tab" data-tab="publish" disabled>
+                                <span class="dashicons dashicons-category"></span>
+                                <span>Publicar</span>
+                            </button>
                         </div>
 
                         <!-- Conteúdo das Abas -->
@@ -88,15 +96,14 @@
                                     <div class="wpai-label-row">
                                         <label for="wpai-context" class="wpai-label">Assunto / Contexto</label>
                                         <div class="wpai-context-actions">
-                                            <button type="button" class="wpai-icon-btn" id="wpai-voice-btn" title="Gravar voz">
-                                                <span class="dashicons dashicons-microphone"></span>
-                                            </button>
+                                            ${(hasOpenAI || hasGemini) ? '<button type="button" class="wpai-icon-btn" id="wpai-voice-btn" title="Gravar voz"><span class="dashicons dashicons-microphone"></span></button>' : ''}
                                             <button type="button" class="wpai-icon-btn" id="wpai-improve-btn" title="Melhorar com IA">
-                                                <span class="dashicons dashicons-admin-generic"></span>
+                                                <span class="dashicons dashicons-star-filled"></span>
+                                                <span class="btn-label">IA</span>
                                             </button>
                                         </div>
                                     </div>
-                                    <textarea id="wpai-context" class="wpai-textarea" placeholder="Descreva o tema, público-alvo, palavras-chave... ou use o microfone para ditar"></textarea>
+                                    <textarea id="wpai-context" class="wpai-textarea" placeholder="Descreva o tema, público-alvo, palavras-chave...${hasOpenAI ? ' ou use o microfone para ditar' : ''}"></textarea>
                                     <div class="wpai-context-info">
                                         <span id="wpai-char-count">0</span>/500 caracteres
                                     </div>
@@ -106,28 +113,43 @@
                                     <div class="wpai-form-item">
                                         <label class="wpai-label">Tom</label>
                                         <select id="wpai-tone" class="wpai-select-compact">
-                                            <option value="Neutro" selected>🎯 Neutro</option>
-                                            <option value="Profissional">💼 Profissional</option>
-                                            <option value="Humanizado">💬 Humanizado</option>
-                                            <option value="Jornalístico">📰 Jornalístico</option>
-                                            <option value="Marketing">🚀 Marketing</option>
+                                            <option value="auto">⚡ Auto</option>
+                                            <option value="neutro" selected>🎯 Neutro</option>
+                                            <option value="profissional">💼 Profissional</option>
+                                            <option value="informal">👕 Informal</option>
+                                            <option value="informativo">ℹ️ Informativo</option>
+                                            <option value="jornalistico">📰 Jornalístico</option>
+                                            <option value="marketing">🚀 Marketing</option>
+                                            <option value="energetico">⚡ Energético</option>
+                                            <option value="amigavel">😊 Amigável</option>
+                                            <option value="serio">😐 Sério</option>
+                                            <option value="otimista">🤩 Otimista</option>
+                                            <option value="pensativo">🤔 Pensativo</option>
+                                            <option value="esperancoso">🤞 Esperançoso</option>
                                         </select>
                                     </div>
                                     <div class="wpai-form-item">
                                         <label class="wpai-label">Tipo</label>
                                         <select id="wpai-type" class="wpai-select-compact">
-                                            <option value="Notícia">📢 Notícia</option>
-                                            <option value="Artigo" selected>📝 Artigo</option>
-                                            <option value="Tutorial">📚 Tutorial</option>
-                                            <option value="Review">⭐ Review</option>
+                                            <option value="auto">⚡ Auto</option>
+                                            <option value="artigo" selected>📝 Artigo</option>
+                                            <option value="sumario">📋 Sumário</option>
+                                            <option value="noticia">📢 Notícia</option>
+                                            <option value="listicle">📊 Listicle</option>
+                                            <option value="tutorial">📚 Tutorial</option>
+                                            <option value="review">⭐ Review</option>
+                                            <option value="entrevista">🎤 Entrevista</option>
+                                            <option value="aida">🎯 AIDA</option>
                                         </select>
                                     </div>
                                     <div class="wpai-form-item">
                                         <label class="wpai-label">Pessoa</label>
                                         <select id="wpai-person" class="wpai-select-compact">
-                                            <option value="Primeira pessoa">1ª</option>
-                                            <option value="Segunda pessoa">2ª</option>
-                                            <option value="Terceira pessoa" selected>3ª</option>
+                                            <option value="auto">⚡ Auto</option>
+                                            <option value="1s">1ª Singular</option>
+                                            <option value="1p">1ª Plural</option>
+                                            <option value="2">2ª Pessoa</option>
+                                            <option value="3" selected>3ª Pessoa</option>
                                         </select>
                                     </div>
                                     <div class="wpai-form-item">
@@ -138,76 +160,70 @@
                                             <option value="2500">~2500</option>
                                         </select>
                                     </div>
-                                    <div class="wpai-form-item">
-                                        <label class="wpai-label">Status</label>
-                                        <select id="wpai-status" class="wpai-select-compact">
-                                            <option value="Rascunho" selected>📄 Rascunho</option>
-                                            <option value="Publicado">🌐 Publicado</option>
-                                        </select>
-                                    </div>
                                 </div>
 
-                                <!-- Seção de Thumbnail Compacta -->
-                                <div class="wpai-thumb-section">
-                                    <div class="wpai-thumb-toggle">
-                                        <label class="wpai-switch">
-                                            <input type="checkbox" id="wpai-generate-thumbnail">
-                                            <span class="wpai-slider"></span>
-                                        </label>
-                                        <span class="wpai-thumb-label">Gerar thumbnail com IA</span>
+                                <!-- Grid 2 colunas: IA Texto + Imagem -->
+                                <div class="wpai-ai-grid">
+                                    <!-- Coluna Esquerda: IA para Texto -->
+                                    <div class="wpai-ai-col">
+                                        ${(hasOpenAI || hasGemini) ? `
+                                        <label class="wpai-label-sm">IA para Texto</label>
+                                        <div class="wpai-ai-options">
+                                            ${hasOpenAI ? `
+                                            <label class="wpai-ai-option available ${hasOpenAI ? 'selected' : ''}" data-ai="openai">
+                                                <input type="radio" name="wpai-text-ai" value="openai" ${hasOpenAI ? 'checked' : ''}>
+                                                <span class="wpai-ai-icon">🤖</span>
+                                                <span class="wpai-ai-name">OpenAI</span>
+                                                <span class="wpai-ai-model">GPT-4</span>
+                                            </label>
+                                            ` : ''}
+                                            ${hasGemini ? `
+                                            <label class="wpai-ai-option available ${!hasOpenAI ? 'selected' : ''}" data-ai="gemini">
+                                                <input type="radio" name="wpai-text-ai" value="gemini" ${!hasOpenAI ? 'checked' : ''}>
+                                                <span class="wpai-ai-icon">✨</span>
+                                                <span class="wpai-ai-name">Gemini</span>
+                                                <span class="wpai-ai-model">2.5 Flash</span>
+                                            </label>
+                                            ` : ''}
+                                        </div>
+                                        ` : `
+                                        <div class="wpai-ai-warning">
+                                            <span class="dashicons dashicons-warning"></span>
+                                            <span>Configure API Key</span>
+                                        </div>
+                                        `}
                                     </div>
                                     
-                                    <div class="wpai-thumb-options" id="wpai-thumb-options">
-                                        <!-- Provider Selection -->
-                                        <div class="wpai-provider-row">
-                                            <label class="wpai-provider-option ${hasOpenAI ? 'available' : 'disabled'}" data-provider="dalle">
-                                                <input type="radio" name="wpai-provider" value="dalle" ${hasOpenAI ? 'checked' : 'disabled'}>
-                                                <span class="wpai-provider-icon">🎨</span>
-                                                <span class="wpai-provider-name">DALL-E 3</span>
+                                    <!-- Coluna Direita: IA para Imagem -->
+                                    <div class="wpai-ai-col wpai-img-col">
+                                        <div class="wpai-img-header">
+                                            <label class="wpai-switch-mini">
+                                                <input type="checkbox" id="wpai-generate-thumbnail">
+                                                <span class="wpai-slider-mini"></span>
                                             </label>
-                                            <label class="wpai-provider-option ${hasGemini ? 'available' : 'disabled'}" data-provider="gemini">
-                                                <input type="radio" name="wpai-provider" value="gemini" ${!hasOpenAI && hasGemini ? 'checked' : ''} ${hasGemini ? '' : 'disabled'}>
-                                                <span class="wpai-provider-icon">✨</span>
-                                                <span class="wpai-provider-name">Gemini</span>
-                                            </label>
+                                            <span class="wpai-label-sm">🖼️ Imagem</span>
                                         </div>
-                                        
-                                        <!-- Format Selection DALL-E -->
-                                        <div class="wpai-format-row" id="wpai-dalle-formats">
-                                            <label class="wpai-format-radio" data-format="1024x1024">
-                                                <input type="radio" name="wpai-format-dalle" value="1024x1024">
-                                                <span class="wpai-format-box wpai-ratio-1-1"></span>
-                                                <span>1:1</span>
-                                            </label>
-                                            <label class="wpai-format-radio selected" data-format="1792x1024">
-                                                <input type="radio" name="wpai-format-dalle" value="1792x1024" checked>
-                                                <span class="wpai-format-box wpai-ratio-16-9"></span>
-                                                <span>16:9</span>
-                                            </label>
-                                            <label class="wpai-format-radio" data-format="1024x1792">
-                                                <input type="radio" name="wpai-format-dalle" value="1024x1792">
-                                                <span class="wpai-format-box wpai-ratio-9-16"></span>
-                                                <span>9:16</span>
-                                            </label>
-                                        </div>
-                                        
-                                        <!-- Format Selection Gemini -->
-                                        <div class="wpai-format-row" id="wpai-gemini-formats" style="display: none;">
-                                            <label class="wpai-format-radio" data-format="1:1">
-                                                <input type="radio" name="wpai-format-gemini" value="1:1">
-                                                <span class="wpai-format-box wpai-ratio-1-1"></span>
-                                                <span>1:1</span>
-                                            </label>
-                                            <label class="wpai-format-radio selected" data-format="4:3">
-                                                <input type="radio" name="wpai-format-gemini" value="4:3" checked>
-                                                <span class="wpai-format-box wpai-ratio-4-3"></span>
-                                                <span>4:3</span>
-                                            </label>
-                                            <label class="wpai-format-radio" data-format="16:9">
-                                                <input type="radio" name="wpai-format-gemini" value="16:9">
-                                                <span class="wpai-format-box wpai-ratio-16-9"></span>
-                                                <span>16:9</span>
-                                            </label>
+                                        <div class="wpai-img-options" id="wpai-thumb-options">
+                                            <div class="wpai-provider-mini">
+                                                <label class="wpai-prov-opt ${hasOpenAI ? '' : 'off'}" data-provider="dalle">
+                                                    <input type="radio" name="wpai-provider" value="dalle" ${hasOpenAI ? 'checked' : 'disabled'}>
+                                                    <span>DALL-E</span>
+                                                </label>
+                                                <label class="wpai-prov-opt ${hasGemini ? '' : 'off'}" data-provider="gemini">
+                                                    <input type="radio" name="wpai-provider" value="gemini" ${!hasOpenAI && hasGemini ? 'checked' : ''} ${hasGemini ? '' : 'disabled'}>
+                                                    <span>Gemini</span>
+                                                </label>
+                                            </div>
+                                            <div class="wpai-size-mini" id="wpai-dalle-formats">
+                                                <label class="wpai-sz" data-format="1024x1024"><input type="radio" name="wpai-format-dalle" value="1024x1024"><span>1:1</span></label>
+                                                <label class="wpai-sz sel" data-format="1792x1024"><input type="radio" name="wpai-format-dalle" value="1792x1024" checked><span>16:9</span></label>
+                                                <label class="wpai-sz" data-format="1024x1792"><input type="radio" name="wpai-format-dalle" value="1024x1792"><span>9:16</span></label>
+                                            </div>
+                                            <div class="wpai-size-mini" id="wpai-gemini-formats" style="display: none;">
+                                                <label class="wpai-sz" data-format="1:1"><input type="radio" name="wpai-format-gemini" value="1:1"><span>1:1</span></label>
+                                                <label class="wpai-sz sel" data-format="4:3"><input type="radio" name="wpai-format-gemini" value="4:3" checked><span>4:3</span></label>
+                                                <label class="wpai-sz" data-format="16:9"><input type="radio" name="wpai-format-gemini" value="16:9"><span>16:9</span></label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -216,53 +232,47 @@
                             <!-- Aba: Pipeline -->
                             <div class="wpai-tab-panel" id="wpai-panel-pipeline">
                                 <div class="wpai-pipeline-list">
-                                    <div class="wpai-step" data-step="interpretation">
-                                        <div class="wpai-step-num">1</div>
+                                    <div class="wpai-step pending" data-step="interpretation">
+                                        <div class="wpai-step-num"><span>1</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">Interpretação</div>
-                                            <div class="wpai-step-desc">Analisando requisitos SEO</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="text"></div>
                                     </div>
-                                    <div class="wpai-step" data-step="first_draft">
-                                        <div class="wpai-step-num">2</div>
+                                    <div class="wpai-step pending" data-step="first_draft">
+                                        <div class="wpai-step-num"><span>2</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">Escrita</div>
-                                            <div class="wpai-step-desc">Criando artigo otimizado</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="text"></div>
                                     </div>
-                                    <div class="wpai-step" data-step="review">
-                                        <div class="wpai-step-num">3</div>
+                                    <div class="wpai-step pending" data-step="review">
+                                        <div class="wpai-step-num"><span>3</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">Revisão</div>
-                                            <div class="wpai-step-desc">Avaliando qualidade E-E-A-T</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="text"></div>
                                     </div>
-                                    <div class="wpai-step" data-step="titles">
-                                        <div class="wpai-step-num">4</div>
+                                    <div class="wpai-step pending" data-step="titles">
+                                        <div class="wpai-step-num"><span>4</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">Títulos SEO</div>
-                                            <div class="wpai-step-desc">Gerando 5 opções</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="text"></div>
                                     </div>
-                                    <div class="wpai-step" data-step="seo">
-                                        <div class="wpai-step-num">5</div>
+                                    <div class="wpai-step pending" data-step="seo">
+                                        <div class="wpai-step-num"><span>5</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">SEO & Rank Math</div>
-                                            <div class="wpai-step-desc">Meta tags e keywords</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="text"></div>
                                     </div>
-                                    <div class="wpai-step" data-step="thumbnail" style="display: none;">
-                                        <div class="wpai-step-num">6</div>
+                                    <div class="wpai-step pending" data-step="thumbnail" style="display: none;">
+                                        <div class="wpai-step-num"><span>6</span><svg class="wpai-progress-ring" viewBox="0 0 60 60"><circle class="wpai-progress-ring-bg" cx="30" cy="30" r="28"/><circle class="wpai-progress-ring-fill" cx="30" cy="30" r="28"/></svg></div>
                                         <div class="wpai-step-info">
                                             <div class="wpai-step-title">Thumbnail</div>
-                                            <div class="wpai-step-desc">Prompt de imagem</div>
                                         </div>
-                                        <div class="wpai-step-status"></div>
+                                        <div class="wpai-step-ai" data-ai-type="image"></div>
                                     </div>
                                 </div>
                             </div>
@@ -271,9 +281,38 @@
                             <div class="wpai-tab-panel" id="wpai-panel-titles">
                                 <div class="wpai-panel-header">
                                     <h3>Escolha o Título</h3>
-                                    <span class="wpai-badge">5 sugestões SEO</span>
+                                    <span class="wpai-badge">4 sugestões SEO</span>
                                 </div>
                                 <div class="wpai-titles-list" id="wpai-titles-list"></div>
+                            </div>
+
+                            <!-- Aba: Publicação -->
+                            <div class="wpai-tab-panel" id="wpai-panel-publish">
+                                <div class="wpai-panel-header">
+                                    <h3>Opções de Publicação</h3>
+                                    <span class="wpai-badge wpai-post-type-badge">${wpaiPostGen.currentPostTypeLabel || 'Post'}</span>
+                                </div>
+                                <div class="wpai-publish-options">
+                                    <div class="wpai-options-grid">
+                                        <div class="wpai-option-item wpai-category-wrapper" ${wpaiPostGen.hasCategories ? '' : 'style="display:none;"'}>
+                                            <label class="wpai-label">📁 Categoria</label>
+                                            <select id="wpai-category" class="wpai-select-compact">
+                                                <option value="0">Sem categoria</option>
+                                            </select>
+                                        </div>
+                                        <div class="wpai-option-item">
+                                            <label class="wpai-label">📋 Status</label>
+                                            <select id="wpai-publish-status" class="wpai-select-compact">
+                                                <option value="draft">Rascunho</option>
+                                                <option value="publish">Publicar</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="wpai-tags-section" ${wpaiPostGen.hasTags ? '' : 'style="display:none;"'}>
+                                        <label class="wpai-label">🏷️ Tags sugeridas pela IA</label>
+                                        <div class="wpai-tags-list" id="wpai-tags-list"></div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Aba: Preview -->
@@ -314,13 +353,13 @@
                             <div class="wpai-tab-panel" id="wpai-panel-thumbnail">
                                 <div class="wpai-panel-header">
                                     <h3>Thumbnail IA</h3>
-                                    <button type="button" class="wpai-btn-small" id="wpai-generate-thumb-btn">
-                                        <span class="dashicons dashicons-images-alt2"></span> Gerar
+                                    <button type="button" class="wpai-btn-small" id="wpai-regenerate-thumb-btn">
+                                        <span class="dashicons dashicons-update"></span> Regenerar
                                     </button>
                                 </div>
                                 <div class="wpai-thumb-prompt" id="wpai-thumb-prompt">
-                                    <label>Prompt:</label>
-                                    <p id="wpai-thumb-prompt-text">-</p>
+                                    <label>Prompt <small>(edite se necessário)</small>:</label>
+                                    <textarea id="wpai-thumb-prompt-text" class="wpai-prompt-textarea" rows="3" placeholder="Prompt para geração da imagem..."></textarea>
                                 </div>
                                 <div class="wpai-thumb-result" id="wpai-thumb-result">
                                     <div class="wpai-thumb-loading" id="wpai-thumb-loading" style="display: none;">
@@ -365,6 +404,7 @@
                             <div class="wpai-footer-info">
                                 <span class="dashicons dashicons-info"></span>
                                 <span id="wpai-footer-text">Preencha os campos e clique em Gerar.</span>
+                                <span id="wpai-footer-ai" class="wpai-footer-ai-badge" style="display: none;"></span>
                             </div>
                             <div class="wpai-footer-actions">
                                 <div class="wpai-result-links" id="wpai-result-links" style="display: none;">
@@ -434,32 +474,46 @@
             // Thumbnail toggle
             this.$overlay.on('change', '#wpai-generate-thumbnail', function () {
                 self.generateThumbnail = $(this).is(':checked');
-                $('#wpai-thumb-options').toggle(self.generateThumbnail);
+                $('#wpai-thumb-options').toggleClass('show', self.generateThumbnail);
                 $('[data-step="thumbnail"]').toggle(self.generateThumbnail);
                 $('[data-tab="thumbnail"]').toggle(self.generateThumbnail);
             });
 
-            // Provider selection
+            // Text AI selection (clique no card)
+            this.$overlay.on('click', '.wpai-ai-option', function () {
+                const $option = $(this);
+                const $input = $option.find('input[name="wpai-text-ai"]');
+                
+                // Marca o radio button
+                $input.prop('checked', true);
+                
+                // Atualiza visual
+                $('.wpai-ai-option').removeClass('selected');
+                $option.addClass('selected');
+                
+                console.log('WPAI: Text AI selecionada:', $input.val());
+            });
+
+            // Provider selection (novo layout minimalista)
             this.$overlay.on('change', 'input[name="wpai-provider"]', function () {
                 self.thumbnailProvider = $(this).val();
-                $('.wpai-provider-option').removeClass('selected');
-                $(this).closest('.wpai-provider-option').addClass('selected');
+
+                // Esconde todos os formatos primeiro
+                $('#wpai-dalle-formats, #wpai-gemini-formats').hide();
 
                 if (self.thumbnailProvider === 'dalle') {
                     $('#wpai-dalle-formats').show();
-                    $('#wpai-gemini-formats').hide();
                     self.thumbnailFormat = $('input[name="wpai-format-dalle"]:checked').val();
-                } else {
-                    $('#wpai-dalle-formats').hide();
+                } else if (self.thumbnailProvider === 'gemini') {
                     $('#wpai-gemini-formats').show();
                     self.thumbnailFormat = $('input[name="wpai-format-gemini"]:checked').val();
                 }
             });
 
-            // Format selection
+            // Format selection (novo layout minimalista)
             this.$overlay.on('change', 'input[name="wpai-format-dalle"], input[name="wpai-format-gemini"]', function () {
-                $(this).closest('.wpai-format-row').find('.wpai-format-radio').removeClass('selected');
-                $(this).closest('.wpai-format-radio').addClass('selected');
+                $(this).closest('.wpai-size-mini').find('.wpai-sz').removeClass('sel');
+                $(this).closest('.wpai-sz').addClass('sel');
                 self.thumbnailFormat = $(this).val();
             });
 
@@ -484,10 +538,13 @@
                 self.improveDescription();
             });
 
-            // Generate thumbnail button
-            this.$overlay.on('click', '#wpai-generate-thumb-btn', function () {
-                if (self.generatedData && self.generatedData.thumbnail_prompt) {
-                    self.generateThumbnailImage();
+            // Regenerate thumbnail button (usa prompt editado)
+            this.$overlay.on('click', '#wpai-regenerate-thumb-btn', function () {
+                const editedPrompt = $('#wpai-thumb-prompt-text').val().trim();
+                if (editedPrompt) {
+                    self.regenerateThumbnail(editedPrompt);
+                } else {
+                    self.showToast('Digite um prompt para gerar a imagem.', 'error');
                 }
             });
         },
@@ -656,7 +713,7 @@
         resetAll: function () {
             this.$modal.find('input[type="text"], textarea').val('');
             this.$modal.find('#wpai-generate-thumbnail').prop('checked', false);
-            this.$modal.find('#wpai-thumb-options').hide();
+            this.$modal.find('#wpai-thumb-options').removeClass('show');
             this.$modal.find('[data-tab="thumbnail"]').hide();
             this.resetSteps();
             this.generatedData = null;
@@ -672,19 +729,27 @@
         },
 
         resetSteps: function () {
-            this.$modal.find('.wpai-step').removeClass('active completed error');
+            this.$modal.find('.wpai-step').removeClass('active completed error').addClass('pending');
         },
 
         setStepActive: function (step) {
-            this.$modal.find('[data-step="' + step + '"]').removeClass('completed error').addClass('active');
+            const $step = this.$modal.find('[data-step="' + step + '"]');
+            $step.removeClass('pending completed error').addClass('active');
+
+            // Scroll para o step ativo
+            const $container = this.$modal.find('.wpai-pipeline-list');
+            const stepOffset = $step.offset().left - $container.offset().left;
+            $container.animate({ scrollLeft: stepOffset - 100 }, 300);
         },
 
         setStepCompleted: function (step) {
-            this.$modal.find('[data-step="' + step + '"]').removeClass('active error').addClass('completed');
+            const $step = this.$modal.find('[data-step="' + step + '"]');
+            $step.removeClass('pending active error').addClass('completed');
         },
 
         setStepError: function (step) {
-            this.$modal.find('[data-step="' + step + '"]').removeClass('active completed').addClass('error');
+            const $step = this.$modal.find('[data-step="' + step + '"]');
+            $step.removeClass('pending active completed').addClass('error');
         },
 
         setButtonGenerate: function () {
@@ -730,7 +795,8 @@
             this.setButtonLoading('Gerando...');
             $('#wpai-footer-text').text('Processando com IA... Aguarde.');
 
-            this.setStepActive('interpretation');
+            // Iniciar simulação de progresso em tempo real
+            this.startProgressSimulation();
 
             $.ajax({
                 url: wpaiPostGen.ajaxUrl,
@@ -744,13 +810,15 @@
                     writing_type: $('#wpai-type').val(),
                     person_type: $('#wpai-person').val(),
                     word_count: $('#wpai-words').val(),
-                    publish_mode: $('#wpai-status').val(),
+                    publish_mode: 'Rascunho',
                     generate_thumbnail: this.generateThumbnail,
                     thumbnail_format: this.thumbnailFormat,
-                    thumbnail_provider: this.thumbnailProvider
+                    thumbnail_provider: this.thumbnailProvider,
+                    text_ai: $('input[name="wpai-text-ai"]:checked').val() || 'openai'
                 },
                 timeout: 300000,
                 success: function (response) {
+                    self.stopProgressSimulation();
                     if (response.success) {
                         self.handleGenerateSuccess(response.data);
                     } else {
@@ -758,6 +826,7 @@
                     }
                 },
                 error: function (xhr, status) {
+                    self.stopProgressSimulation();
                     let message = status === 'timeout'
                         ? 'Tempo limite excedido.'
                         : 'Erro de conexão.';
@@ -769,45 +838,310 @@
             });
         },
 
+        // Simulação de progresso em tempo real
+        progressTimeouts: [],
+
+        startProgressSimulation: function () {
+            const self = this;
+            
+            // Pegar IA selecionada para texto e imagem
+            const textAI = $('input[name="wpai-text-ai"]:checked').val() || 'openai';
+            const imageProvider = this.thumbnailProvider || 'dalle';
+            
+            // Nomes amigáveis das IAs
+            const aiNames = {
+                openai: 'OpenAI GPT-4',
+                gemini: 'Gemini 2.5',
+                dalle: 'DALL-E 3',
+                gemini_imagen: 'Gemini Imagen'
+            };
+            
+            const textAIName = aiNames[textAI] || textAI.toUpperCase();
+            const imageAIName = aiNames[imageProvider] || imageProvider.toUpperCase();
+
+            // Mostrar badge de IA no footer
+            $('#wpai-footer-ai').text(`Usando: ${textAIName}`).show();
+
+            // Tempos estimados para cada etapa (em ms)
+            const stages = [
+                { step: 'interpretation', time: 0, message: `🔍 Analisando com ${textAIName}...` },
+                { step: 'first_draft', time: 8000, message: `✍️ Escrevendo com ${textAIName}...` },
+                { step: 'review', time: 25000, message: `📝 Revisando com ${textAIName}...` },
+                { step: 'titles', time: 40000, message: `🏷️ Gerando títulos com ${textAIName}...` },
+                { step: 'seo', time: 50000, message: `🔎 Criando SEO com ${textAIName}...` }
+            ];
+
+            // Se thumbnail está habilitado, adicionar etapa
+            if (this.generateThumbnail) {
+                stages.push({ step: 'thumbnail', time: 60000, message: `🖼️ Gerando imagem com ${imageAIName}...` });
+            }
+
+            // Limpar timeouts anteriores
+            this.stopProgressSimulation();
+
+            // Iniciar primeiro step imediatamente
+            this.setStepActive('interpretation');
+            $('#wpai-footer-text').text(stages[0].message);
+
+            // Agendar transições
+            stages.forEach((stage, index) => {
+                if (index === 0) return; // Primeiro já foi ativado
+
+                const timeout = setTimeout(() => {
+                    // Completar step anterior
+                    if (index > 0) {
+                        self.setStepCompleted(stages[index - 1].step);
+                    }
+                    // Ativar step atual
+                    self.setStepActive(stage.step);
+                    $('#wpai-footer-text').text(stage.message);
+                }, stage.time);
+
+                this.progressTimeouts.push(timeout);
+            });
+        },
+
+        stopProgressSimulation: function () {
+            this.progressTimeouts.forEach(t => clearTimeout(t));
+            this.progressTimeouts = [];
+        },
+
         handleGenerateSuccess: function (data) {
+            const self = this;
             const pipeline = data.pipeline;
             this.generatedData = pipeline;
 
-            // Update steps
-            this.setStepCompleted('interpretation');
-            this.setStepCompleted('first_draft');
-            this.setStepCompleted('review');
-            this.setStepCompleted('titles');
-            this.setStepCompleted('seo');
+            // Log da IA usada
+            console.log('WPAI: Artigo gerado com IA:', data.text_ai_used || 'openai');
 
-            if (pipeline.thumbnail_prompt) {
-                this.setStepCompleted('thumbnail');
+            // Animar steps em sequência com delay
+            const steps = ['interpretation', 'first_draft', 'review', 'titles', 'seo'];
+            let delay = 0;
+
+            steps.forEach((step, index) => {
+                setTimeout(() => {
+                    self.setStepCompleted(step);
+                }, delay);
+                delay += 400; // 400ms entre cada step
+            });
+
+            // Enable tabs após animação
+            setTimeout(() => {
+                this.enableTab('titles');
+                this.enableTab('publish');
+                this.enableTab('preview');
+                this.enableTab('seo');
+
+                // Populate content
+                this.populateTitles(pipeline.titles);
+                this.populateArticle(pipeline.article);
+                this.populateSeo(pipeline.seo);
+
+                // Se tem thumbnail ja gerada, exibir direto
+                if (this.generateThumbnail && pipeline.thumbnail_data && pipeline.thumbnail_data.data) {
+                    this.enableTab('thumbnail');
+                    this.$modal.find('[data-tab="thumbnail"]').show();
+                    this.$modal.find('[data-step="thumbnail"]').show();
+                    
+                    // Exibir prompt usado no textarea
+                    if (pipeline.thumbnail_prompt) {
+                        $('#wpai-thumb-prompt-text').val(pipeline.thumbnail_prompt);
+                    }
+                    
+                    // Exibir imagem ja gerada (otimizada)
+                    setTimeout(() => {
+                        self.setStepCompleted('thumbnail');
+                        self.displayGeneratedThumbnail(pipeline.thumbnail_data);
+                        self.switchTab('titles');
+                        $('#wpai-footer-text').text('Escolha o título e clique em Salvar.');
+                        self.setButtonSave();
+                        self.showToast('Artigo e thumbnail gerados!', 'success');
+                    }, 500);
+                } else if (this.generateThumbnail && pipeline.thumbnail_prompt) {
+                    // Fallback: gerar thumbnail se so tem o prompt
+                    this.enableTab('thumbnail');
+                    this.$modal.find('[data-tab="thumbnail"]').show();
+                    this.$modal.find('[data-step="thumbnail"]').show();
+                    $('#wpai-thumb-prompt-text').val(pipeline.thumbnail_prompt);
+                    setTimeout(() => {
+                        self.setStepActive('thumbnail');
+                        self.autoGenerateThumbnail(pipeline.thumbnail_prompt);
+                    }, 500);
+                } else {
+                    // Se nao tem thumbnail, ir direto para titulos
+                    this.switchTab('titles');
+                    $('#wpai-footer-text').text('Escolha o título e clique em Salvar.');
+                    this.setButtonSave();
+                    this.showToast('Artigo gerado com sucesso!', 'success');
+                }
+            }, delay + 200);
+        },
+
+        autoGenerateThumbnail: function (prompt) {
+            const self = this;
+
+            console.log('WPAI Thumbnail: Starting auto generation');
+            console.log('WPAI Thumbnail: Prompt:', prompt);
+            console.log('WPAI Thumbnail: Provider:', this.thumbnailProvider);
+            console.log('WPAI Thumbnail: Format:', this.thumbnailFormat);
+
+            this.switchTab('thumbnail');
+            $('#wpai-thumb-loading').show();
+            $('#wpai-thumb-image').hide();
+            this.updateThumbStep('generate');
+            $('#wpai-footer-text').text('Gerando thumbnail com IA...');
+
+            $.ajax({
+                url: wpaiPostGen.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'wpai_generate_thumbnail',
+                    nonce: wpaiPostGen.nonce,
+                    prompt: prompt,
+                    format: this.thumbnailFormat,
+                    provider: this.thumbnailProvider,
+                    title: this.generatedData?.titles?.titles?.[0]?.title || 'thumbnail'
+                },
+                timeout: 120000,
+                beforeSend: function () {
+                    console.log('WPAI Thumbnail: AJAX request started');
+                    setTimeout(() => self.updateThumbStep('optimize'), 10000);
+                    setTimeout(() => self.updateThumbStep('save'), 18000);
+                },
+                success: function (response) {
+                    console.log('WPAI Thumbnail: AJAX success response:', response);
+                    self.updateThumbStep('done');
+                    self.setStepCompleted('thumbnail');
+
+                    setTimeout(() => {
+                        $('#wpai-thumb-loading').hide();
+                        if (response.success) {
+                            console.log('WPAI Thumbnail: Image URL:', response.data.url);
+                            $('#wpai-thumb-img').attr('src', response.data.url);
+                            $('#wpai-thumb-image').show();
+                            self.thumbnailAttachmentId = response.data.attachment_id;
+                            self.generatedData.thumbnail_id = response.data.attachment_id;
+
+                            self.switchTab('titles');
+                            $('#wpai-footer-text').text('Thumbnail pronta! Escolha o título e salve.');
+                            self.setButtonSave();
+                            self.showToast('Artigo e thumbnail prontos!', 'success');
+                        } else {
+                            console.error('WPAI Thumbnail: Generation failed:', response.data);
+                            self.setStepError('thumbnail');
+                            self.showToast(response.data?.message || 'Erro ao gerar thumbnail', 'error');
+                            self.switchTab('titles');
+                            self.setButtonSave();
+                        }
+                    }, 500);
+                },
+                error: function (xhr, status, error) {
+                    console.error('WPAI Thumbnail: AJAX error:', status, error);
+                    console.error('WPAI Thumbnail: XHR response:', xhr.responseText);
+                    self.setStepError('thumbnail');
+                    $('#wpai-thumb-loading').hide();
+                    self.showToast('Erro ao gerar thumbnail: ' + error, 'error');
+                    self.switchTab('titles');
+                    self.setButtonSave();
+                }
+            });
+        },
+
+        // Regenerar thumbnail com prompt editado
+        regenerateThumbnail: function (editedPrompt) {
+            const self = this;
+
+            console.log('WPAI Thumbnail: Regenerating with edited prompt');
+            console.log('WPAI Thumbnail: Prompt:', editedPrompt);
+
+            $('#wpai-thumb-loading').show();
+            $('#wpai-thumb-image').hide();
+            this.updateThumbStep('generate');
+            $('#wpai-footer-text').text('Regenerando thumbnail...');
+
+            $.ajax({
+                url: wpaiPostGen.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'wpai_generate_thumbnail',
+                    nonce: wpaiPostGen.nonce,
+                    prompt: editedPrompt,
+                    format: this.thumbnailFormat,
+                    provider: this.thumbnailProvider,
+                    title: this.generatedData?.titles?.titles?.[0]?.title || 'thumbnail'
+                },
+                timeout: 120000,
+                beforeSend: function () {
+                    setTimeout(() => self.updateThumbStep('optimize'), 10000);
+                    setTimeout(() => self.updateThumbStep('save'), 18000);
+                },
+                success: function (response) {
+                    self.updateThumbStep('done');
+                    setTimeout(() => {
+                        $('#wpai-thumb-loading').hide();
+                        if (response.success) {
+                            $('#wpai-thumb-img').attr('src', response.data.url);
+                            $('#wpai-thumb-image').show();
+                            self.thumbnailAttachmentId = response.data.attachment_id;
+                            self.generatedData.thumbnail_id = response.data.attachment_id;
+                            // Limpar base64 pois agora temos ID
+                            self.generatedData.thumbnail_base64 = null;
+                            self.showToast('Thumbnail regenerada!', 'success');
+                        } else {
+                            self.showToast(response.data?.message || 'Erro ao regenerar', 'error');
+                        }
+                    }, 500);
+                },
+                error: function (xhr, status, error) {
+                    $('#wpai-thumb-loading').hide();
+                    self.showToast('Erro: ' + error, 'error');
+                }
+            });
+        },
+
+        // Exibe thumbnail ja gerada pelo pipeline
+        displayGeneratedThumbnail: function (thumbnailData) {
+            const self = this;
+            
+            if (!thumbnailData || !thumbnailData.data) {
+                console.error('WPAI: No thumbnail data to display');
+                return;
             }
+            
+            const mimeType = thumbnailData.mime_type || 'image/jpeg';
+            const imageUrl = 'data:' + mimeType + ';base64,' + thumbnailData.data;
+            
+            $('#wpai-thumb-loading').hide();
+            $('#wpai-thumb-img').attr('src', imageUrl);
+            $('#wpai-thumb-image').show();
+            
+            // Salvar dados originais para usar ao salvar o post
+            this.generatedData.thumbnail_base64 = thumbnailData.data_original || thumbnailData.data;
+            this.generatedData.thumbnail_mime = mimeType;
+            
+            console.log('WPAI: Thumbnail displayed from pipeline data');
+        },
 
-            // Enable tabs
-            this.enableTab('titles');
-            this.enableTab('preview');
-            this.enableTab('seo');
-
-            if (this.generateThumbnail && pipeline.thumbnail_prompt) {
-                this.enableTab('thumbnail');
-                this.$modal.find('[data-tab="thumbnail"]').show();
-                $('#wpai-thumb-prompt-text').text(pipeline.thumbnail_prompt);
-            }
-
-            // Populate content
-            this.populateTitles(pipeline.titles);
-            this.populateArticle(pipeline.article);
-            this.populateSeo(pipeline.seo);
-
-            // Switch to titles tab
-            this.switchTab('titles');
-
-            // Update UI
-            $('#wpai-footer-text').text('Escolha o título e clique em Salvar.');
-            this.setButtonSave();
-
-            this.showToast('Artigo gerado com sucesso!', 'success');
+        loadCategories: function () {
+            const self = this;
+            $.ajax({
+                url: wpaiPostGen.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'wpai_get_categories',
+                    nonce: wpaiPostGen.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        const $select = $('#wpai-category');
+                        $select.empty();
+                        $select.append('<option value="0">Sem categoria</option>');
+                        response.data.forEach(cat => {
+                            $select.append(`<option value="${cat.term_id}">${self.escapeHtml(cat.name)}</option>`);
+                        });
+                    }
+                }
+            });
         },
 
         populateTitles: function (titlesData) {
@@ -821,21 +1155,56 @@
             titlesData.titles.forEach((item, index) => {
                 const isRecommended = index === recommended;
                 const $option = $(`
-                    <div class="wpai-title-option ${isRecommended ? 'recommended' : ''}" data-title="${this.escapeHtml(item.title)}">
-                        <div class="wpai-title-radio"></div>
-                        <div class="wpai-title-text">${this.escapeHtml(item.title)}</div>
-                        <div class="wpai-title-meta">${item.characters || item.title.length} chars</div>
+                    <div class="wpai-title-option ${isRecommended ? 'recommended' : ''} ${isRecommended ? 'selected' : ''}" data-title="${this.escapeHtml(item.title)}">
+                        <div class="wpai-title-radio ${isRecommended ? 'selected' : ''}"></div>
+                        <div class="wpai-title-text">
+                            ${this.escapeHtml(item.title)}
+                            <div class="wpai-title-meta">${this.escapeHtml(item.rationale)}</div>
+                        </div>
                     </div>
                 `);
+
+                $option.on('click', () => {
+                    this.selectTitle($option);
+                });
+
                 $list.append($option);
 
                 if (isRecommended) {
                     this.selectTitle($option);
                 }
             });
+
+            if (this.generatedData && this.generatedData.seo && this.generatedData.seo.tags) {
+                this.populateTags(this.generatedData.seo.tags);
+            }
         },
 
+        populateTags: function (tags) {
+            const $list = $('#wpai-tags-list');
+            $list.empty();
+
+            tags.forEach(tag => {
+                const $tag = $(`
+                    <div class="wpai-tag-item selected" data-tag="${this.escapeHtml(tag)}">
+                        #${this.escapeHtml(tag)}
+                        <span class="tag-remove dashicons dashicons-no-alt"></span>
+                    </div>
+                `);
+
+                $tag.on('click', function () {
+                    $(this).toggleClass('selected');
+                });
+
+                $list.append($tag);
+            });
+        },
         populateArticle: function (article) {
+            if (!article) {
+                console.error('WPAI: Article content is empty');
+                return;
+            }
+            console.log('WPAI: Populating article preview, length:', article.length);
             $('#wpai-article-content').html(article);
         },
 
@@ -899,6 +1268,7 @@
                             $('#wpai-thumb-img').attr('src', response.data.url);
                             $('#wpai-thumb-image').show();
                             self.showToast('Thumbnail gerada e otimizada!', 'success');
+                            self.generatedData.thumbnail_id = response.data.attachment_id;
                         } else {
                             self.showToast(response.data.message, 'error');
                         }
@@ -939,6 +1309,14 @@
             $('#wpai-thumb-status').text(messages[step] || 'Processando...');
         },
 
+        getSelectedTags: function () {
+            const tags = [];
+            $('.wpai-tag-item.selected').each(function () {
+                tags.push($(this).data('tag'));
+            });
+            return tags;
+        },
+
         savePost: function () {
             const self = this;
 
@@ -951,17 +1329,30 @@
             this.setButtonLoading('Salvando...');
             $('#wpai-footer-text').text('Salvando post...');
 
+            // Preparar dados do post
+            const postData = {
+                action: 'wpai_save_post',
+                nonce: wpaiPostGen.nonce,
+                title: this.selectedTitle,
+                content: this.generatedData.article,
+                status: $('#wpai-publish-status').val(),
+                category: $('#wpai-category').val(),
+                tags: this.getSelectedTags(),
+                thumbnail_id: this.generatedData.thumbnail_id || 0,
+                seo: this.generatedData.seo,
+                post_type: wpaiPostGen.currentPostType || 'post'
+            };
+            
+            // Se tem thumbnail em base64 (gerada pelo pipeline), enviar
+            if (this.generatedData.thumbnail_base64 && !this.generatedData.thumbnail_id) {
+                postData.thumbnail_base64 = this.generatedData.thumbnail_base64;
+                postData.thumbnail_mime = this.generatedData.thumbnail_mime || 'image/jpeg';
+            }
+
             $.ajax({
                 url: wpaiPostGen.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'wpai_save_post',
-                    nonce: wpaiPostGen.nonce,
-                    title: this.selectedTitle,
-                    content: this.generatedData.article,
-                    status: $('#wpai-status').val(),
-                    seo: JSON.stringify(this.generatedData.seo)
-                },
+                data: postData,
                 success: function (response) {
                     if (response.success) {
                         self.handleSaveSuccess(response.data);
@@ -978,61 +1369,27 @@
         },
 
         handleSaveSuccess: function (data) {
-            const self = this;
-
-            // Show result links
+            // Mostrar links de resultado
             this.$modal.find('.wpai-link-edit').attr('href', data.edit_url);
             this.$modal.find('.wpai-link-view').attr('href', data.view_url);
             $('#wpai-result-links').show();
 
             $('#wpai-footer-text').html('<strong>Post #' + data.post_id + ' salvo!</strong>');
 
-            // Generate thumbnail if enabled
-            if (this.generateThumbnail && this.generatedData.thumbnail_prompt) {
-                this.switchTab('thumbnail');
-
-                $.ajax({
-                    url: wpaiPostGen.ajaxUrl,
-                    type: 'POST',
-                    data: {
-                        action: 'wpai_generate_thumbnail',
-                        nonce: wpaiPostGen.nonce,
-                        prompt: this.generatedData.thumbnail_prompt,
-                        format: this.thumbnailFormat,
-                        provider: this.thumbnailProvider,
-                        post_id: data.post_id,
-                        title: this.selectedTitle
-                    },
-                    beforeSend: function () {
-                        $('#wpai-thumb-loading').show();
-                        $('#wpai-thumb-image').hide();
-                    },
-                    success: function (response) {
-                        $('#wpai-thumb-loading').hide();
-                        if (response.success) {
-                            $('#wpai-thumb-img').attr('src', response.data.url);
-                            $('#wpai-thumb-image').show();
-                            self.showToast('Thumbnail anexada!', 'success');
-                        } else {
-                            self.showToast('Erro: ' + response.data.message, 'error');
-                        }
-                    },
-                    error: function () {
-                        $('#wpai-thumb-loading').hide();
-                        self.showToast('Erro ao gerar thumbnail.', 'error');
-                    }
-                });
-            }
-
-            // Update button
+            // Alterar botão principal para "Novo Post"
             const $btn = $('#wpai-btn-main');
-            $btn.removeClass('wpai-btn-save');
-            $btn.html('<span class="dashicons dashicons-plus-alt"></span><span>Novo Artigo</span>');
             $btn.prop('disabled', false);
-            $btn.off('click').on('click', () => this.resetAll());
+            $btn.removeClass('wpai-btn-save wpai-btn-primary').addClass('wpai-btn-success');
+            $btn.html('<span class="dashicons dashicons-yes-alt"></span> Novo Post');
+            
+            // Rebind click para recarregar
+            $btn.off('click').on('click', function () {
+                location.reload();
+            });
 
             this.showToast('Post salvo com sucesso!', 'success');
         },
+
 
         handleError: function (message) {
             this.setStepError('interpretation');

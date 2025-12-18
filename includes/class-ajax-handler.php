@@ -21,6 +21,66 @@ class WPAI_Ajax_Handler
         add_action('wp_ajax_wpai_test_connection', [$this, 'test_connection']);
         add_action('wp_ajax_wpai_transcribe_audio', [$this, 'transcribe_audio']);
         add_action('wp_ajax_wpai_improve_description', [$this, 'improve_description']);
+        add_action('wp_ajax_wpai_get_categories', [$this, 'get_categories']);
+        add_action('wp_ajax_wpai_reveal_api_key', [$this, 'reveal_api_key']);
+        add_action('wp_ajax_wpai_test_gemini', [$this, 'test_gemini']);
+        add_action('wp_ajax_wpai_test_openrouter', [$this, 'test_openrouter']);
+    }
+
+    // Revela a API key descriptografada (apenas para admins)
+    public function reveal_api_key()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $key_type = sanitize_text_field($_POST['key_type'] ?? '');
+        
+        if (!in_array($key_type, ['openai', 'gemini', 'openrouter'])) {
+            wp_send_json_error(['message' => __('Tipo de chave inválido.', 'wp-ai-post-generator')]);
+        }
+
+        $settings = get_option('wpai_post_gen_settings', []);
+        $encryption = new WPAI_Encryption();
+        
+        $key_fields = ['openai' => 'openai_api_key', 'gemini' => 'gemini_api_key', 'openrouter' => 'openrouter_api_key'];
+        $key_field = $key_fields[$key_type];
+        $encrypted_key = $settings[$key_field] ?? '';
+        
+        if (empty($encrypted_key)) {
+            wp_send_json_error(['message' => __('Chave não configurada.', 'wp-ai-post-generator')]);
+        }
+
+        $decrypted_key = $encryption->decrypt($encrypted_key);
+        
+        if (empty($decrypted_key)) {
+            wp_send_json_error(['message' => __('Erro ao descriptografar chave.', 'wp-ai-post-generator')]);
+        }
+
+        wp_send_json_success(['key' => $decrypted_key]);
+    }
+
+    public function get_categories()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $categories = get_categories(['hide_empty' => false]);
+        $data = [];
+
+        foreach ($categories as $cat) {
+            $data[] = [
+                'term_id' => $cat->term_id,
+                'name' => $cat->name
+            ];
+        }
+
+        wp_send_json_success($data);
     }
 
     public function generate_post()
@@ -41,7 +101,11 @@ class WPAI_Ajax_Handler
             'publish_mode' => sanitize_text_field($_POST['publish_mode'] ?? 'Rascunho'),
             'generate_thumbnail' => filter_var($_POST['generate_thumbnail'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'thumbnail_format' => sanitize_text_field($_POST['thumbnail_format'] ?? '3:2'),
+            'text_ai' => sanitize_text_field($_POST['text_ai'] ?? 'openai'),
         ];
+
+        // Log para debug da IA selecionada
+        error_log('WPAI Debug - Text AI recebida: ' . $params['text_ai']);
 
         if (empty($params['desired_title']) || empty($params['subject_context'])) {
             wp_send_json_error(['message' => __('Título e contexto são obrigatórios.', 'wp-ai-post-generator')]);
@@ -57,9 +121,10 @@ class WPAI_Ajax_Handler
             ]);
         }
 
-        // Retornar dados para o usuário escolher o título
+        // Retornar dados para o usuario escolher o titulo
         wp_send_json_success([
             'message' => __('Artigo gerado! Escolha o título.', 'wp-ai-post-generator'),
+            'text_ai_used' => $params['text_ai'],
             'pipeline' => [
                 'briefing' => $result['briefing'],
                 'article' => $result['article'],
@@ -68,6 +133,7 @@ class WPAI_Ajax_Handler
                 'titles' => $result['titles'],
                 'seo' => $result['seo'],
                 'thumbnail_prompt' => $result['thumbnail_prompt'] ?? null,
+                'thumbnail_data' => $result['thumbnail_data'] ?? null,
                 'execution_log' => $result['execution_log'],
             ],
         ]);
@@ -83,24 +149,111 @@ class WPAI_Ajax_Handler
 
         $title = sanitize_text_field($_POST['title'] ?? '');
         $content = wp_kses_post($_POST['content'] ?? '');
-        $status = sanitize_text_field($_POST['status'] ?? 'Rascunho');
+        $status = sanitize_text_field($_POST['status'] ?? 'draft');
+        $category_id = absint($_POST['category'] ?? 0);
+        $tags = isset($_POST['tags']) ? array_map('sanitize_text_field', (array) $_POST['tags']) : [];
+        $thumbnail_id = absint($_POST['thumbnail_id'] ?? 0);
         $seo_data = isset($_POST['seo']) ? $this->sanitize_seo_data($_POST['seo']) : [];
+        $post_type = sanitize_key($_POST['post_type'] ?? 'post');
+
+        // Valida se o post type está habilitado e existe
+        $settings = get_option('wpai_post_gen_settings', []);
+        $enabled_post_types = $settings['enabled_post_types'] ?? ['post'];
+        $valid_post_types = array_keys(get_post_types(['show_ui' => true]));
+        
+        if (!in_array($post_type, $enabled_post_types) || !in_array($post_type, $valid_post_types)) {
+            $post_type = 'post';
+        }
 
         if (empty($title) || empty($content)) {
             wp_send_json_error(['message' => __('Título e conteúdo são obrigatórios.', 'wp-ai-post-generator')]);
         }
 
-        $multi_agent = new WPAI_Multi_Agent();
-        $post_id = $multi_agent->create_post($title, $content, $status, $seo_data);
+        // Converter status
+        $post_status = ($status === 'publish' || $status === 'Publicado') ? 'publish' : 'draft';
+
+        // Criar o post no tipo correto
+        $post_data = [
+            'post_title' => $title,
+            'post_content' => $content,
+            'post_status' => $post_status,
+            'post_type' => $post_type,
+            'post_author' => get_current_user_id(),
+        ];
+
+        // Adicionar categoria (apenas para post types que suportam)
+        if ($category_id > 0 && is_object_in_taxonomy($post_type, 'category')) {
+            $post_data['post_category'] = [$category_id];
+        }
+
+        $post_id = wp_insert_post($post_data, true);
 
         if (is_wp_error($post_id)) {
-            wp_send_json_error([
-                'message' => $post_id->get_error_message(),
-            ]);
+            wp_send_json_error(['message' => $post_id->get_error_message()]);
+        }
+
+        // Adicionar tags (apenas para post types que suportam)
+        if (!empty($tags) && is_object_in_taxonomy($post_type, 'post_tag')) {
+            wp_set_post_tags($post_id, $tags, false);
+        }
+
+        // Extrair focus keyword para uso em SEO da imagem
+        $focus_keyword = '';
+        if (!empty($seo_data['focus_keyword'])) {
+            $focus_keyword = $seo_data['focus_keyword'];
+        }
+
+        // Definir thumbnail (ID ou base64)
+        if ($thumbnail_id > 0) {
+            set_post_thumbnail($post_id, $thumbnail_id);
+            // Atualizar alt e descricao da imagem existente
+            if (!empty($focus_keyword)) {
+                $this->update_attachment_seo($thumbnail_id, $title, $focus_keyword);
+            }
+        } elseif (!empty($_POST['thumbnail_base64'])) {
+            // Salvar thumbnail do base64 gerado pelo pipeline
+            $attach_id = $this->save_thumbnail_from_base64(
+                $_POST['thumbnail_base64'],
+                $_POST['thumbnail_mime'] ?? 'image/jpeg',
+                $title,
+                $post_id,
+                $focus_keyword
+            );
+            if ($attach_id && !is_wp_error($attach_id)) {
+                set_post_thumbnail($post_id, $attach_id);
+            }
+        }
+
+        // Salvar SEO (Rank Math)
+        if (!empty($seo_data) && class_exists('RankMath')) {
+            // Focus keyword + secondary keywords (total 5)
+            $all_keywords = [];
+            if (!empty($seo_data['focus_keyword'])) {
+                $all_keywords[] = sanitize_text_field($seo_data['focus_keyword']);
+            }
+            if (!empty($seo_data['secondary_keywords']) && is_array($seo_data['secondary_keywords'])) {
+                foreach (array_slice($seo_data['secondary_keywords'], 0, 4) as $kw) {
+                    $all_keywords[] = sanitize_text_field($kw);
+                }
+            }
+            if (!empty($all_keywords)) {
+                update_post_meta($post_id, 'rank_math_focus_keyword', implode(',', $all_keywords));
+            }
+
+            // SEO Title - usar meta_title do SEO agent ou titulo do post
+            $seo_title = !empty($seo_data['meta_title']) ? $seo_data['meta_title'] : (!empty($seo_data['seo_title']) ? $seo_data['seo_title'] : $title);
+            update_post_meta($post_id, 'rank_math_title', sanitize_text_field($seo_title));
+
+            // Meta Description
+            if (!empty($seo_data['meta_description'])) {
+                update_post_meta($post_id, 'rank_math_description', sanitize_text_field($seo_data['meta_description']));
+            }
         }
 
         wp_send_json_success([
-            'message' => __('Post salvo com sucesso!', 'wp-ai-post-generator'),
+            'message' => $post_status === 'publish'
+                ? __('Post publicado com sucesso!', 'wp-ai-post-generator')
+                : __('Rascunho salvo com sucesso!', 'wp-ai-post-generator'),
             'post_id' => $post_id,
             'edit_url' => get_edit_post_link($post_id, 'raw'),
             'view_url' => get_permalink($post_id),
@@ -124,23 +277,34 @@ class WPAI_Ajax_Handler
         $post_id = absint($_POST['post_id'] ?? 0);
         $title = sanitize_text_field($_POST['title'] ?? 'thumbnail-' . time());
 
+        error_log('WPAI Thumbnail Request: provider=' . $provider . ', format=' . $format);
+        error_log('WPAI Thumbnail Prompt: ' . substr($prompt, 0, 200));
+
         if (empty($prompt)) {
             wp_send_json_error(['message' => __('Prompt é obrigatório.', 'wp-ai-post-generator')]);
         }
 
         // Escolher provider
         if ($provider === 'gemini') {
+            error_log('WPAI: Using Gemini for thumbnail generation');
             $result = $this->generate_with_gemini($prompt, $format);
+        } elseif ($provider === 'openrouter') {
+            error_log('WPAI: Using OpenRouter for thumbnail generation');
+            $result = $this->generate_with_openrouter($prompt, $format);
         } else {
+            error_log('WPAI: Using DALL-E for thumbnail generation');
             $result = $this->generate_with_dalle($prompt, $format);
         }
 
         if (is_wp_error($result)) {
+            error_log('WPAI Thumbnail Error: ' . $result->get_error_message());
             wp_send_json_error([
                 'message' => $result->get_error_message(),
                 'code' => $result->get_error_code(),
             ]);
         }
+
+        error_log('WPAI Thumbnail: Image generated successfully, saving to media library');
 
         // Salvar na biblioteca e definir como thumbnail
         $filename = sanitize_title($title);
@@ -148,6 +312,9 @@ class WPAI_Ajax_Handler
         if ($provider === 'gemini') {
             $gemini = new WPAI_Gemini_Client();
             $attach_id = $gemini->save_to_media_library($result['data'], $filename, $post_id);
+        } elseif ($provider === 'openrouter') {
+            $openrouter = new WPAI_OpenRouter_Client();
+            $attach_id = $openrouter->save_to_media_library($result['data'], $filename, $post_id);
         } else {
             $openai = new WPAI_OpenAI_Client();
             $attach_id = $openai->save_image_to_media_library($result['data'], $filename, $post_id);
@@ -158,6 +325,17 @@ class WPAI_Ajax_Handler
                 'message' => $attach_id->get_error_message(),
             ]);
         }
+
+        // Definir alt e title da imagem
+        $alt_text = !empty($title) ? $title : 'Imagem gerada por IA';
+        update_post_meta($attach_id, '_wp_attachment_image_alt', sanitize_text_field($alt_text));
+
+        // Atualizar título do attachment
+        wp_update_post([
+            'ID' => $attach_id,
+            'post_title' => sanitize_text_field($title),
+            'post_excerpt' => '', // Caption
+        ]);
 
         wp_send_json_success([
             'message' => __('Thumbnail gerada com sucesso!', 'wp-ai-post-generator'),
@@ -194,6 +372,18 @@ class WPAI_Ajax_Handler
         }
 
         return $gemini->generate_image($prompt, $format);
+    }
+
+    // Gera imagem com OpenRouter
+    private function generate_with_openrouter($prompt, $format)
+    {
+        $openrouter = new WPAI_OpenRouter_Client();
+
+        if (!$openrouter->has_api_key()) {
+            return new WP_Error('no_api_key', __('Configure a API Key do OpenRouter.', 'wp-ai-post-generator'));
+        }
+
+        return $openrouter->generate_image($prompt, $format);
     }
 
     private function sanitize_seo_data($seo)
@@ -253,13 +443,88 @@ class WPAI_Ajax_Handler
         }
 
         wp_send_json_success([
-            'message' => __('Conexão bem-sucedida!', 'wp-ai-post-generator'),
+            'message' => __('Conexão OpenAI OK!', 'wp-ai-post-generator'),
+            'model' => $client->get_model(),
+        ]);
+    }
+
+    // Testa conexão com Gemini
+    public function test_gemini()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $client = new WPAI_Gemini_Client();
+
+        if (!$client->has_api_key()) {
+            wp_send_json_error(['message' => __('API Key do Gemini não configurada.', 'wp-ai-post-generator')]);
+        }
+
+        // Testar com uma requisição simples de texto
+        $settings = get_option('wpai_post_gen_settings', []);
+        $encryption = new WPAI_Encryption();
+        $api_key = $encryption->decrypt($settings['gemini_api_key']);
+
+        $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+        
+        $response = wp_remote_post($api_url . '?key=' . $api_key, [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => wp_json_encode([
+                'contents' => [['parts' => [['text' => 'Responda apenas: OK']]]]
+            ]),
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()]);
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        
+        if ($code !== 200) {
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+            $message = $body['error']['message'] ?? 'Erro na API Gemini (código ' . $code . ')';
+            wp_send_json_error(['message' => $message]);
+        }
+
+        wp_send_json_success([
+            'message' => __('Conexão Gemini OK!', 'wp-ai-post-generator'),
+            'model' => 'gemini-2.0-flash-exp',
+        ]);
+    }
+
+    // Testa conexão com OpenRouter
+    public function test_openrouter()
+    {
+        check_ajax_referer('wpai_post_gen_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('Permissão negada.', 'wp-ai-post-generator')]);
+        }
+
+        $client = new WPAI_OpenRouter_Client();
+
+        if (!$client->has_api_key()) {
+            wp_send_json_error(['message' => __('API Key do OpenRouter não configurada.', 'wp-ai-post-generator')]);
+        }
+
+        $result = $client->test_connection();
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        }
+
+        wp_send_json_success([
+            'message' => __('Conexão OpenRouter OK!', 'wp-ai-post-generator'),
             'model' => $client->get_model(),
         ]);
     }
 
     /**
-     * Transcreve áudio usando OpenAI Whisper
+     * Transcreve audio usando OpenAI Whisper ou Gemini
      */
     public function transcribe_audio()
     {
@@ -274,39 +539,35 @@ class WPAI_Ajax_Handler
         }
 
         $settings = get_option('wpai_post_gen_settings', []);
+        $file = $_FILES['audio'];
+        $file_path = $file['tmp_name'];
+
+        // Tenta usar Gemini primeiro (se disponivel)
+        if (!empty($settings['gemini_api_key'])) {
+            $gemini = new WPAI_Gemini_Client();
+            $result = $gemini->transcribe_audio($file_path);
+            
+            if (!is_wp_error($result)) {
+                wp_send_json_success(['text' => $result]);
+                return;
+            }
+        }
+
+        // Fallback para OpenAI Whisper
         if (empty($settings['openai_api_key'])) {
-            wp_send_json_error(['message' => __('API Key não configurada.', 'wp-ai-post-generator')]);
+            wp_send_json_error(['message' => __('Configure a API Key do Gemini ou OpenAI.', 'wp-ai-post-generator')]);
         }
 
         $encryption = new WPAI_Encryption();
         $api_key = $encryption->decrypt($settings['openai_api_key']);
 
-        $file = $_FILES['audio'];
-        $file_path = $file['tmp_name'];
-
-        // Converter webm para mp3 se necessário (Whisper aceita webm)
         $curl_file = new CURLFile($file_path, $file['type'], 'audio.webm');
 
-        $response = wp_remote_post('https://api.openai.com/v1/audio/transcriptions', [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $api_key,
-            ],
-            'body' => [
-                'file' => $curl_file,
-                'model' => 'whisper-1',
-                'language' => 'pt',
-            ],
-            'timeout' => 60,
-        ]);
-
-        // Fallback: usar curl diretamente
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://api.openai.com/v1/audio/transcriptions');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $api_key,
-        ]);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $api_key]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, [
             'file' => $curl_file,
             'model' => 'whisper-1',
@@ -320,16 +581,11 @@ class WPAI_Ajax_Handler
 
         if ($http_code !== 200) {
             $error = json_decode($result, true);
-            wp_send_json_error([
-                'message' => $error['error']['message'] ?? 'Erro na transcrição',
-            ]);
+            wp_send_json_error(['message' => $error['error']['message'] ?? 'Erro na transcrição']);
         }
 
         $data = json_decode($result, true);
-
-        wp_send_json_success([
-            'text' => $data['text'] ?? '',
-        ]);
+        wp_send_json_success(['text' => $data['text'] ?? '']);
     }
 
     /**
@@ -382,5 +638,86 @@ class WPAI_Ajax_Handler
             'original_length' => strlen($text),
             'improved_length' => strlen($improved),
         ]);
+    }
+
+    // Salva thumbnail de base64 na biblioteca de midia com SEO otimizado
+    private function save_thumbnail_from_base64($base64_data, $mime_type, $title, $post_id, $focus_keyword = '')
+    {
+        $image_data = base64_decode($base64_data);
+        if ($image_data === false) {
+            return new WP_Error('decode_error', 'Erro ao decodificar imagem');
+        }
+
+        $ext = ($mime_type === 'image/png') ? 'png' : 'jpg';
+        $upload_dir = wp_upload_dir();
+        
+        // Nome do arquivo otimizado para SEO
+        $seo_filename = !empty($focus_keyword) ? sanitize_title($focus_keyword) : sanitize_title($title);
+        $filename = $seo_filename . '-' . time() . '.' . $ext;
+        $filepath = $upload_dir['path'] . '/' . $filename;
+
+        if (file_put_contents($filepath, $image_data) === false) {
+            return new WP_Error('save_error', 'Erro ao salvar imagem');
+        }
+
+        // Gerar alt text e descricao SEO
+        $alt_text = $this->generate_image_alt($title, $focus_keyword);
+        $description = $this->generate_image_description($title, $focus_keyword);
+
+        $attachment = [
+            'post_mime_type' => $mime_type,
+            'post_title' => sanitize_text_field($title),
+            'post_content' => $description,
+            'post_excerpt' => $alt_text,
+            'post_status' => 'inherit'
+        ];
+
+        $attach_id = wp_insert_attachment($attachment, $filepath, $post_id);
+        if (is_wp_error($attach_id)) {
+            return $attach_id;
+        }
+
+        // Salvar alt text como meta
+        update_post_meta($attach_id, '_wp_attachment_image_alt', $alt_text);
+
+        require_once(ABSPATH . 'wp-admin/includes/image.php');
+        $attach_data = wp_generate_attachment_metadata($attach_id, $filepath);
+        wp_update_attachment_metadata($attach_id, $attach_data);
+
+        return $attach_id;
+    }
+
+    // Atualiza SEO de imagem existente
+    private function update_attachment_seo($attach_id, $title, $focus_keyword)
+    {
+        $alt_text = $this->generate_image_alt($title, $focus_keyword);
+        $description = $this->generate_image_description($title, $focus_keyword);
+
+        wp_update_post([
+            'ID' => $attach_id,
+            'post_title' => sanitize_text_field($title),
+            'post_content' => $description,
+            'post_excerpt' => $alt_text
+        ]);
+
+        update_post_meta($attach_id, '_wp_attachment_image_alt', $alt_text);
+    }
+
+    // Gera alt text otimizado para SEO
+    private function generate_image_alt($title, $focus_keyword)
+    {
+        if (!empty($focus_keyword)) {
+            return ucfirst($focus_keyword) . ' - ' . $title;
+        }
+        return $title;
+    }
+
+    // Gera descricao otimizada para SEO
+    private function generate_image_description($title, $focus_keyword)
+    {
+        if (!empty($focus_keyword)) {
+            return 'Imagem ilustrativa sobre ' . $focus_keyword . '. ' . $title . '. Saiba mais sobre ' . $focus_keyword . ' neste artigo completo.';
+        }
+        return 'Imagem ilustrativa: ' . $title;
     }
 }

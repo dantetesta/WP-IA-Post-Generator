@@ -71,7 +71,7 @@ class WPAI_OpenAI_Client
         $encrypted_key = $settings['openai_api_key'] ?? '';
         $this->api_key = $this->encryption->decrypt($encrypted_key);
 
-        $this->model = $settings['openai_model'] ?? 'gpt-4.1-mini';
+        $this->model = $settings['openai_model'] ?? 'gpt-4o-mini';
     }
 
     /**
@@ -232,10 +232,20 @@ class WPAI_OpenAI_Client
     public static function get_available_models()
     {
         return [
-            'gpt-4.1' => 'GPT-4.1 (Mais poderoso)',
-            'gpt-4.1-mini' => 'GPT-4.1 Mini (Rápido e econômico)',
-            'gpt-o1' => 'GPT-o1 (Raciocínio avançado)',
-            'gpt-o3-mini' => 'GPT-o3 Mini (Raciocínio rápido)',
+            'gpt-4o' => 'GPT-4o (Mais recente e multimodal)',
+            'gpt-4o-mini' => 'GPT-4o Mini (Rápido e econômico)',
+            'gpt-4-turbo' => 'GPT-4 Turbo (Poderoso)',
+            'o1' => 'o1 (Raciocínio avançado)',
+            'o1-mini' => 'o1 Mini (Raciocínio econômico)',
+        ];
+    }
+
+    // Modelos de imagem disponiveis
+    public static function get_image_models()
+    {
+        return [
+            'gpt-image-1' => 'GPT Image 1 (Mais recente - Nativo GPT-4o)',
+            'dall-e-3' => 'DALL-E 3 (Alta qualidade)',
         ];
     }
 
