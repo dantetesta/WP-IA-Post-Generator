@@ -291,23 +291,13 @@ class WPAI_Admin
     {
         $meta_fields = [];
 
-        // ACF (Advanced Custom Fields)
+        // ACF (Advanced Custom Fields) - Versão melhorada
         if (function_exists('acf_get_field_groups')) {
             $groups = acf_get_field_groups(['post_type' => $post_type]);
             foreach ($groups as $group) {
                 $acf_fields = acf_get_fields($group['key']);
                 if ($acf_fields) {
-                    foreach ($acf_fields as $field) {
-                        // Só inclui campos de texto/textarea/wysiwyg
-                        if (in_array($field['type'], ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number'])) {
-                            $meta_fields[$field['name']] = [
-                                'label' => $field['label'],
-                                'type' => 'acf',
-                                'field_type' => $field['type'],
-                                'key' => $field['key']
-                            ];
-                        }
-                    }
+                    $this->extract_acf_fields($acf_fields, $meta_fields);
                 }
             }
         }
@@ -320,7 +310,8 @@ class WPAI_Admin
                 foreach ($meta_boxes as $meta_box) {
                     if (isset($meta_box['post_types']) && in_array($post_type, (array)$meta_box['post_types'])) {
                         foreach ($meta_box['fields'] as $field) {
-                            if (in_array($field['type'], ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number'])) {
+                            $allowed_types = ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number', 'oembed', 'slider', 'range'];
+                            if (in_array($field['type'], $allowed_types)) {
                                 $meta_fields[$field['id']] = [
                                     'label' => $field['name'] ?? $field['id'],
                                     'type' => 'metabox',
@@ -339,7 +330,8 @@ class WPAI_Admin
             if ($pod && $pod->valid()) {
                 $pod_fields = $pod->fields();
                 foreach ($pod_fields as $field_name => $field) {
-                    if (in_array($field['type'], ['text', 'paragraph', 'wysiwyg', 'website', 'email', 'number'])) {
+                    $allowed_types = ['text', 'paragraph', 'wysiwyg', 'website', 'email', 'number', 'code', 'phone'];
+                    if (in_array($field['type'], $allowed_types)) {
                         $meta_fields[$field_name] = [
                             'label' => $field['label'],
                             'type' => 'pods',
@@ -350,27 +342,115 @@ class WPAI_Admin
             }
         }
 
-        // CMB2
-        global $wp_filter;
-        if (isset($wp_filter['cmb2_admin_init'])) {
-            // CMB2 registra campos via hooks, difícil detectar sem instanciar
-            // Fallback: busca meta keys registradas
-        }
-
-        // Fallback: Meta keys registradas no banco
-        global $wpdb;
+        // Fallback: Meta keys registradas via register_meta
         $registered_meta = get_registered_meta_keys('post', $post_type);
         foreach ($registered_meta as $key => $args) {
             if (!isset($meta_fields[$key]) && strpos($key, '_') !== 0) {
                 $meta_fields[$key] = [
-                    'label' => $args['description'] ?? ucfirst(str_replace('_', ' ', $key)),
+                    'label' => $args['description'] ?? ucfirst(str_replace(['_', '-'], ' ', $key)),
                     'type' => 'registered',
                     'field_type' => $args['type'] ?? 'string'
                 ];
             }
         }
 
+        // Fallback final: Busca meta keys existentes no banco de dados
+        $db_meta_keys = $this->get_meta_keys_from_database($post_type);
+        foreach ($db_meta_keys as $key) {
+            if (!isset($meta_fields[$key])) {
+                $meta_fields[$key] = [
+                    'label' => ucfirst(str_replace(['_', '-'], ' ', $key)),
+                    'type' => 'database',
+                    'field_type' => 'string'
+                ];
+            }
+        }
+
         return $meta_fields;
+    }
+
+    // Extrai campos ACF recursivamente (inclui campos de grupos e repeaters)
+    private function extract_acf_fields($fields, &$meta_fields, $prefix = '')
+    {
+        $allowed_types = ['text', 'textarea', 'wysiwyg', 'url', 'email', 'number', 'oembed', 'range', 'password'];
+        
+        foreach ($fields as $field) {
+            $field_name = $prefix ? $prefix . '_' . $field['name'] : $field['name'];
+            
+            // Campos de texto compatíveis
+            if (in_array($field['type'], $allowed_types)) {
+                $meta_fields[$field['name']] = [
+                    'label' => $field['label'],
+                    'type' => 'acf',
+                    'field_type' => $field['type'],
+                    'key' => $field['key']
+                ];
+            }
+            
+            // Campos de imagem (para thumbnail)
+            if ($field['type'] === 'image') {
+                $meta_fields[$field['name']] = [
+                    'label' => $field['label'] . ' (Imagem)',
+                    'type' => 'acf',
+                    'field_type' => 'image',
+                    'key' => $field['key']
+                ];
+            }
+            
+            // Se for grupo, extrai campos internos
+            if ($field['type'] === 'group' && !empty($field['sub_fields'])) {
+                $this->extract_acf_fields($field['sub_fields'], $meta_fields, $field['name']);
+            }
+        }
+    }
+
+    // Busca meta keys existentes no banco de dados para o post type
+    private function get_meta_keys_from_database($post_type)
+    {
+        global $wpdb;
+        
+        // Lista de meta keys internas do WordPress para ignorar
+        $excluded_keys = [
+            '_edit_lock', '_edit_last', '_wp_page_template', '_wp_trash_meta_status',
+            '_wp_trash_meta_time', '_wp_desired_post_slug', '_thumbnail_id',
+            '_wp_attached_file', '_wp_attachment_metadata', '_menu_item_type',
+            '_menu_item_menu_item_parent', '_menu_item_object_id', '_menu_item_object',
+            '_menu_item_target', '_menu_item_classes', '_menu_item_xfn', '_menu_item_url',
+            '_pingme', '_encloseme', '_trackbackme', '_wp_old_slug', '_wp_old_date',
+            '_oembed_', '_transient_', 'rank_math_', '_yoast_', '_aioseo_'
+        ];
+        
+        $query = $wpdb->prepare("
+            SELECT DISTINCT pm.meta_key 
+            FROM {$wpdb->postmeta} pm
+            INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+            WHERE p.post_type = %s
+            AND pm.meta_key NOT LIKE %s
+            AND pm.meta_key NOT LIKE %s
+            AND pm.meta_key NOT LIKE %s
+            AND pm.meta_key NOT LIKE %s
+            AND pm.meta_key NOT LIKE %s
+            LIMIT 50
+        ", $post_type, '\_%', 'rank_math%', '_yoast%', '_aioseo%', '_oembed%');
+        
+        $results = $wpdb->get_col($query);
+        
+        // Filtra resultados adicionais
+        $filtered = [];
+        foreach ($results as $key) {
+            $skip = false;
+            foreach ($excluded_keys as $excluded) {
+                if (strpos($key, $excluded) === 0) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if (!$skip && !empty($key)) {
+                $filtered[] = $key;
+            }
+        }
+        
+        return $filtered;
     }
 
     // Retorna os mapeamentos salvos para um post type
