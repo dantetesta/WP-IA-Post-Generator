@@ -263,7 +263,9 @@
             });
 
             // Salvar mapeamentos
-            $(document).on('click', '#wpai-mapping-save', function() {
+            $(document).on('click', '#wpai-mapping-save', function(e) {
+                e.preventDefault();
+                console.log('WPAI: Botão salvar clicado!');
                 self.saveMappings();
             });
         },
