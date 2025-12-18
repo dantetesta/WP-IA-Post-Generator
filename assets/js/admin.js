@@ -438,7 +438,7 @@
                     action: 'wpai_save_field_mappings',
                     nonce: wpaiPostGen.nonce,
                     post_type: this.currentMappingPT,
-                    mappings: mappings
+                    mappings: JSON.stringify(mappings)
                 },
                 success: function(response) {
                     console.log('WPAI Save response:', response);

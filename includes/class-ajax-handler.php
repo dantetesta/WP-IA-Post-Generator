@@ -72,7 +72,18 @@ class WPAI_Ajax_Handler
         }
 
         $post_type = sanitize_key($_POST['post_type'] ?? '');
-        $mappings = isset($_POST['mappings']) ? $_POST['mappings'] : [];
+        $mappings_raw = isset($_POST['mappings']) ? $_POST['mappings'] : '{}';
+        
+        // Decodifica JSON se for string
+        if (is_string($mappings_raw)) {
+            $mappings = json_decode(stripslashes($mappings_raw), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log('WPAI: Erro ao decodificar JSON: ' . json_last_error_msg());
+                $mappings = [];
+            }
+        } else {
+            $mappings = $mappings_raw;
+        }
         
         error_log('WPAI: post_type = ' . $post_type);
         error_log('WPAI: mappings recebidos = ' . print_r($mappings, true));
