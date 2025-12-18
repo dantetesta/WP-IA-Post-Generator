@@ -398,11 +398,21 @@
                 const genField = $(this).data('gen-field');
                 const value = $(this).val();
 
-                if (value) {
-                    const [type, field] = value.split(':');
+                if (value && value.includes(':')) {
+                    const parts = value.split(':');
+                    const type = parts[0];
+                    const field = parts.slice(1).join(':');
                     mappings[genField] = { type: type, field: field };
                 }
             });
+
+            console.log('WPAI Mappings to save:', mappings);
+            console.log('WPAI Post type:', this.currentMappingPT);
+
+            if (Object.keys(mappings).length === 0) {
+                self.showToast('Selecione pelo menos um mapeamento.', 'warning');
+                return;
+            }
 
             const $btn = $('#wpai-mapping-save');
             $btn.prop('disabled', true).html('<span class="dashicons dashicons-update wpai-spin"></span> Salvando...');
@@ -417,14 +427,16 @@
                     mappings: mappings
                 },
                 success: function(response) {
+                    console.log('WPAI Save response:', response);
                     if (response.success) {
-                        self.showToast('Mapeamento salvo!', 'success');
+                        self.showToast('Mapeamento salvo com sucesso!', 'success');
                         self.closeMappingModal();
                     } else {
-                        self.showToast(response.data.message, 'error');
+                        self.showToast(response.data?.message || 'Erro ao salvar.', 'error');
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
+                    console.error('WPAI Save error:', xhr.responseText);
                     self.showToast('Erro ao salvar mapeamento.', 'error');
                 },
                 complete: function() {
