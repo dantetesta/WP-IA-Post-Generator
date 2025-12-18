@@ -933,30 +933,51 @@
 .wpai-field-desc {
     font-size: 13px;
     color: var(--stripe-text-secondary);
-    margin: 0 0 16px 0;
+    margin: 0 0 20px 0;
+    line-height: 1.5;
 }
 
 .wpai-post-types-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+/* Post Type Item Wrapper com botão de config */
+.wpai-post-type-item-wrapper {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: all 0.2s ease;
+}
+
+.wpai-post-type-item-wrapper:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
 }
 
 .wpai-post-type-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    background: var(--stripe-card);
-    border: 2px solid var(--stripe-border);
-    border-radius: var(--stripe-radius-md);
+    gap: 14px;
+    padding: 16px 18px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-right: none;
     cursor: pointer;
-    transition: var(--stripe-transition);
+    transition: all 0.2s ease;
+    flex: 1;
+}
+
+.wpai-post-type-item-wrapper .wpai-post-type-item {
+    border-radius: 0;
 }
 
 .wpai-post-type-item:hover {
-    border-color: var(--stripe-primary);
-    background: var(--stripe-primary-bg);
+    background: #fafafa;
 }
 
 .wpai-post-type-item input[type="checkbox"] {
@@ -967,13 +988,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
-    background: var(--stripe-surface);
-    border: 2px solid var(--stripe-border);
-    border-radius: var(--stripe-radius-sm);
+    width: 24px;
+    height: 24px;
+    background: #f3f4f6;
+    border: 2px solid #d1d5db;
+    border-radius: 6px;
     flex-shrink: 0;
-    transition: var(--stripe-transition);
+    transition: all 0.2s ease;
 }
 
 .wpai-pt-checkbox .dashicons {
@@ -981,12 +1002,13 @@
     width: 14px;
     height: 14px;
     color: transparent;
-    transition: var(--stripe-transition);
+    transition: all 0.15s ease;
 }
 
 .wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox {
-    background: var(--stripe-primary);
-    border-color: var(--stripe-primary);
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border-color: #4f46e5;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
 }
 
 .wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox .dashicons {
@@ -996,14 +1018,15 @@
 .wpai-pt-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     overflow: hidden;
+    flex: 1;
 }
 
 .wpai-pt-label {
     font-size: 14px;
     font-weight: 600;
-    color: var(--stripe-text);
+    color: #1f2937;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1011,22 +1034,51 @@
 
 .wpai-pt-slug {
     font-size: 11px;
-    color: var(--stripe-text-muted);
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+    color: #9ca3af;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    width: fit-content;
 }
 
-/* Header laranja para Post Types */
+.wpai-pt-config-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #9ca3af;
+}
+
+.wpai-pt-config-btn:hover {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border-color: #4f46e5;
+    color: #fff;
+}
+
+.wpai-pt-config-btn .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* Header laranja para Post Types - mais suave */
 .wpai-panel-header.orange {
-    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-    border-bottom: 1px solid #fed7aa;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-bottom: 1px solid #fcd34d;
 }
 
 .wpai-panel-header.orange h2 {
-    color: #c2410c;
+    color: #92400e;
 }
 
 .wpai-panel-header.orange p {
-    color: #ea580c;
+    color: #b45309;
 }
 
 @media (max-width: 600px) {
@@ -1035,46 +1087,8 @@
     }
     
     .wpai-post-type-item {
-        padding: 12px 14px;
+        padding: 14px 16px;
     }
-}
-
-/* Post Type Item Wrapper com botão de config */
-.wpai-post-type-item-wrapper {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-}
-
-.wpai-post-type-item-wrapper .wpai-post-type-item {
-    flex: 1;
-    border-radius: var(--stripe-radius-md) 0 0 var(--stripe-radius-md);
-}
-
-.wpai-pt-config-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    background: var(--stripe-surface);
-    border: 2px solid var(--stripe-border);
-    border-left: none;
-    border-radius: 0 var(--stripe-radius-md) var(--stripe-radius-md) 0;
-    cursor: pointer;
-    transition: var(--stripe-transition);
-    color: var(--stripe-text-muted);
-}
-
-.wpai-pt-config-btn:hover {
-    background: var(--stripe-primary);
-    border-color: var(--stripe-primary);
-    color: #fff;
-}
-
-.wpai-pt-config-btn .dashicons {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1091,6 +1105,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 20px;
 }
 
 .wpai-mapping-overlay {
@@ -1099,18 +1114,18 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(17, 24, 39, 0.7);
+    backdrop-filter: blur(6px);
 }
 
 .wpai-mapping-content {
     position: relative;
-    width: 90%;
-    max-width: 700px;
+    width: 100%;
+    max-width: 720px;
     max-height: 85vh;
-    background: var(--stripe-card);
-    border-radius: var(--stripe-radius-lg);
-    box-shadow: var(--stripe-shadow-lg);
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1120,76 +1135,88 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px;
-    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    padding: 20px 28px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
     color: #fff;
 }
 
 .wpai-mapping-header h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .wpai-mapping-header h3 .dashicons {
     opacity: 0.9;
+    background: rgba(255,255,255,0.15);
+    padding: 6px;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
 }
 
 .wpai-mapping-close {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.15);
     border: none;
     color: #fff;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 22px;
     cursor: pointer;
-    transition: var(--stripe-transition);
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    line-height: 1;
 }
 
 .wpai-mapping-close:hover {
-    background: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.25);
+    transform: scale(1.05);
 }
 
 .wpai-mapping-body {
     flex: 1;
-    padding: 24px;
+    padding: 28px;
     overflow-y: auto;
+    background: #fafafa;
 }
 
 .wpai-mapping-desc {
-    margin: 0 0 20px 0;
+    margin: 0 0 24px 0;
     font-size: 14px;
-    color: var(--stripe-text-secondary);
+    color: #6b7280;
+    line-height: 1.5;
 }
 
 .wpai-mapping-loading {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 40px;
-    color: var(--stripe-text-secondary);
+    gap: 12px;
+    padding: 50px;
+    color: #6b7280;
     font-size: 14px;
 }
 
 .wpai-mapping-table {
-    border: 1px solid var(--stripe-border);
-    border-radius: var(--stripe-radius-md);
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
     overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .wpai-mapping-row {
     display: grid;
-    grid-template-columns: 1fr 40px 1fr;
+    grid-template-columns: 1fr 50px 1fr;
     align-items: center;
-    border-bottom: 1px solid var(--stripe-border-light);
+    border-bottom: 1px solid #f3f4f6;
 }
 
 .wpai-mapping-row:last-child {
@@ -1197,65 +1224,87 @@
 }
 
 .wpai-mapping-row.wpai-mapping-header {
-    background: var(--stripe-surface);
+    background: #f9fafb;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--stripe-text-secondary);
+    letter-spacing: 0.08em;
+    color: #6b7280;
+}
+
+.wpai-mapping-row:not(.wpai-mapping-header):hover {
+    background: #fafafa;
 }
 
 .wpai-mapping-col {
-    padding: 14px 16px;
+    padding: 16px 20px;
 }
 
 .wpai-mapping-arrow {
     text-align: center;
-    color: var(--stripe-text-muted);
-    font-size: 16px;
+    color: #d1d5db;
+    font-size: 18px;
+    font-weight: 500;
 }
 
 .wpai-gen-field-label {
     display: block;
     font-weight: 600;
     font-size: 13px;
-    color: var(--stripe-text);
-    margin-bottom: 2px;
+    color: #1f2937;
+    margin-bottom: 4px;
 }
 
 .wpai-gen-field-desc {
     display: block;
     font-size: 11px;
-    color: var(--stripe-text-muted);
+    color: #9ca3af;
+    line-height: 1.4;
 }
 
 .wpai-mapping-select {
     width: 100%;
-    padding: 8px 12px;
+    padding: 10px 14px;
     font-size: 13px;
-    border: 1px solid var(--stripe-border);
-    border-radius: var(--stripe-radius);
-    background: var(--stripe-card);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
     cursor: pointer;
-    transition: var(--stripe-transition);
+    transition: all 0.2s ease;
+    color: #374151;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 36px;
+}
+
+.wpai-mapping-select:hover {
+    border-color: #d1d5db;
 }
 
 .wpai-mapping-select:focus {
     outline: none;
-    border-color: var(--stripe-primary);
-    box-shadow: var(--stripe-shadow-focus);
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 .wpai-mapping-info {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 16px;
-    padding: 12px 16px;
-    background: var(--stripe-info-bg);
-    border-radius: var(--stripe-radius);
-    font-size: 12px;
-    color: var(--stripe-info);
+    gap: 10px;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #1e40af;
+}
+
+.wpai-mapping-info .dashicons {
+    color: #3b82f6;
 }
 
 .wpai-mapping-footer {
@@ -1263,15 +1312,59 @@
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
-    padding: 16px 24px;
-    background: var(--stripe-surface);
-    border-top: 1px solid var(--stripe-border);
+    padding: 18px 28px;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+}
+
+.wpai-mapping-footer .wpai-btn-secondary {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.wpai-mapping-footer .wpai-btn-secondary:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+.wpai-mapping-footer .wpai-btn-primary {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+}
+
+.wpai-mapping-footer .wpai-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(79, 70, 229, 0.4);
+}
+
+.wpai-mapping-footer .wpai-btn-primary .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
 }
 
 @media (max-width: 600px) {
     .wpai-mapping-content {
-        width: 95%;
         max-height: 90vh;
+        border-radius: 12px;
     }
     
     .wpai-mapping-row {
@@ -1284,7 +1377,19 @@
     }
     
     .wpai-mapping-col {
-        padding: 10px 14px;
+        padding: 12px 16px;
+    }
+    
+    .wpai-mapping-header {
+        padding: 16px 20px;
+    }
+    
+    .wpai-mapping-body {
+        padding: 20px;
+    }
+    
+    .wpai-mapping-footer {
+        padding: 16px 20px;
     }
 }
 

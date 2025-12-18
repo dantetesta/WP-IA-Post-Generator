@@ -3,7 +3,7 @@
  * Plugin Name: WP Multi-Agent AI Post Generator
  * Plugin URI: https://dantetesta.com.br
  * Description: Gerador de artigos profissionais usando sistema multi-agente da OpenAI com interface visual avançada.
- * Version: 2.8.0
+ * Version: 2.8.1
  * Author: Dante Testa
  * Author URI: https://dantetesta.com.br
  * License: GPL v2 or later
@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Constantes do plugin
-define('WPAI_POST_GEN_VERSION', '2.8.0');
+define('WPAI_POST_GEN_VERSION', '2.8.1');
 define('WPAI_POST_GEN_PLUGIN_FILE', __FILE__);
 define('WPAI_POST_GEN_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WPAI_POST_GEN_PLUGIN_URL', plugin_dir_url(__FILE__));
