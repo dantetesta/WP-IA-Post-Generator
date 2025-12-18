@@ -318,6 +318,8 @@
             const generatedFields = data.generated_fields;
             const $grid = $('#wpai-mapping-grid');
 
+            console.log('WPAI: Mapeamentos recebidos:', mappings);
+
             // Construir opções de destino
             let targetOptions = '<option value="">-- Não mapear --</option>';
             
@@ -358,9 +360,6 @@
             html += '</div>';
 
             for (const [genKey, genField] of Object.entries(generatedFields)) {
-                const savedMapping = mappings[genKey] || {};
-                const savedValue = savedMapping.field ? `${savedMapping.type}:${savedMapping.field}` : '';
-
                 html += `<div class="wpai-mapping-row" data-gen-field="${genKey}">`;
                 html += `<div class="wpai-mapping-col">
                     <span class="wpai-gen-field-label">${genField.label}</span>
@@ -369,7 +368,7 @@
                 html += '<div class="wpai-mapping-col wpai-mapping-arrow">→</div>';
                 html += `<div class="wpai-mapping-col">
                     <select class="wpai-mapping-select" data-gen-field="${genKey}">
-                        ${targetOptions.replace(`value="${savedValue}"`, `value="${savedValue}" selected`)}
+                        ${targetOptions}
                     </select>
                 </div>`;
                 html += '</div>';
@@ -388,6 +387,19 @@
             </div>`;
 
             $grid.html(html);
+
+            // Aplicar valores salvos nos selects
+            for (const [genKey, mapping] of Object.entries(mappings)) {
+                if (mapping && mapping.type && mapping.field) {
+                    const savedValue = `${mapping.type}:${mapping.field}`;
+                    const $select = $(`.wpai-mapping-select[data-gen-field="${genKey}"]`);
+                    if ($select.length) {
+                        $select.val(savedValue);
+                        console.log(`WPAI: Aplicando mapeamento ${genKey} = ${savedValue}`);
+                    }
+                }
+            }
+
             $('#wpai-mapping-loading').hide();
             $grid.show();
         },
