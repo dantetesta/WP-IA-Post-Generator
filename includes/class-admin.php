@@ -129,10 +129,11 @@ class WPAI_Admin
                     $mappings = $this->get_field_mappings($post_type);
                     $generated_fields = $this->get_generated_fields();
                     
-                    // DEBUG: Mostra mapeamentos carregados
-                    if (defined('WP_DEBUG') && WP_DEBUG) {
-                        echo '<div class="notice notice-info" style="margin: 10px 0; padding: 10px;"><strong>DEBUG - Mapeamentos carregados:</strong><pre>' . print_r($mappings, true) . '</pre></div>';
-                    }
+                    // DEBUG: Mostra mapeamentos carregados (sempre visível para diagnóstico)
+                    echo '<div class="notice notice-info" style="margin: 10px 0; padding: 10px;">';
+                    echo '<strong>DEBUG - Mapeamentos carregados para "' . esc_html($post_type) . '":</strong>';
+                    echo '<pre>' . esc_html(print_r($mappings, true)) . '</pre>';
+                    echo '</div>';
                 ?>
                     <div class="wpai-mapping-form" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 20px;">
                         <h2 style="margin-top: 0;">
