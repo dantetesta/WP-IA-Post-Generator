@@ -129,10 +129,12 @@ class WPAI_Admin
                     $mappings = $this->get_field_mappings($post_type);
                     $generated_fields = $this->get_generated_fields();
                     
-                    // DEBUG: Mostra mapeamentos carregados (sempre visível para diagnóstico)
+                    // DEBUG: Mostra mapeamentos carregados
+                    $debug_all = get_option('wpai_field_mappings', []);
                     echo '<div class="notice notice-info" style="margin: 10px 0; padding: 10px;">';
-                    echo '<strong>DEBUG - Mapeamentos carregados para "' . esc_html($post_type) . '":</strong>';
+                    echo '<strong>DEBUG - Mapeamentos para "' . esc_html($post_type) . '":</strong>';
                     echo '<pre>' . esc_html(print_r($mappings, true)) . '</pre>';
+                    echo '<small>Option wpai_field_mappings: ' . esc_html(print_r($debug_all, true)) . '</small>';
                     echo '</div>';
                 ?>
                     <div class="wpai-mapping-form" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 20px;">
@@ -228,17 +230,11 @@ class WPAI_Admin
         <?php
     }
 
-    // Salva mapeamentos do formulário
+    // Salva mapeamentos do formulário (usa option separada)
     private function save_mappings_from_form()
     {
-        // Debug completo do POST
-        error_log('WPAI SAVE: POST completo = ' . print_r($_POST, true));
-        
         $post_type = sanitize_key($_POST['wpai_post_type'] ?? '');
         $mappings_raw = isset($_POST['mapping']) ? $_POST['mapping'] : [];
-
-        error_log('WPAI SAVE: post_type = ' . $post_type);
-        error_log('WPAI SAVE: mappings_raw = ' . print_r($mappings_raw, true));
 
         if (empty($post_type)) {
             return false;
@@ -257,17 +253,10 @@ class WPAI_Admin
             }
         }
 
-        error_log('WPAI SAVE: sanitized_mappings = ' . print_r($sanitized_mappings, true));
-
-        $settings = get_option('wpai_post_gen_settings', []);
-        if (!isset($settings['field_mappings'])) {
-            $settings['field_mappings'] = [];
-        }
-        $settings['field_mappings'][$post_type] = $sanitized_mappings;
-        
-        $result = update_option('wpai_post_gen_settings', $settings);
-        error_log('WPAI SAVE: update_option result = ' . ($result ? 'true' : 'false'));
-        error_log('WPAI SAVE: settings after = ' . print_r(get_option('wpai_post_gen_settings'), true));
+        // Usa option separada para mapeamentos
+        $all_mappings = get_option('wpai_field_mappings', []);
+        $all_mappings[$post_type] = $sanitized_mappings;
+        update_option('wpai_field_mappings', $all_mappings);
 
         return $post_type;
     }
@@ -686,14 +675,11 @@ class WPAI_Admin
         return array_slice($filtered, 0, 50);
     }
 
-    // Retorna os mapeamentos salvos para um post type
+    // Retorna os mapeamentos salvos para um post type (usa option separada)
     public function get_field_mappings($post_type)
     {
-        $settings = get_option('wpai_post_gen_settings', []);
-        error_log('WPAI GET: settings[field_mappings] = ' . print_r($settings['field_mappings'] ?? 'NAO EXISTE', true));
-        $mappings = $settings['field_mappings'] ?? [];
-        error_log('WPAI GET: mappings[' . $post_type . '] = ' . print_r($mappings[$post_type] ?? 'NAO EXISTE', true));
-        return $mappings[$post_type] ?? [];
+        $all_mappings = get_option('wpai_field_mappings', []);
+        return $all_mappings[$post_type] ?? [];
     }
 
     // Campos que o plugin gera
