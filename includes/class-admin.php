@@ -129,7 +129,7 @@ class WPAI_Admin
                             <strong><?php echo count($fields['taxonomies']); ?></strong> taxonomias
                         </p>
 
-                        <form method="post" action="">
+                        <form method="post" action="<?php echo admin_url('admin.php?page=wpai-field-mapping&cpt=' . $post_type); ?>">
                             <?php wp_nonce_field('wpai_save_mapping', 'wpai_mapping_nonce'); ?>
                             <input type="hidden" name="wpai_post_type" value="<?php echo esc_attr($post_type); ?>">
                             
