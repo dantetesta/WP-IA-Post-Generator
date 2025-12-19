@@ -67,18 +67,21 @@ class WPAI_Admin
         $enabled_post_types = $this->get_enabled_post_types();
 
         // Processa salvamento do formulário
-        error_log('WPAI MAPPING PAGE: Verificando POST...');
-        error_log('WPAI MAPPING PAGE: wpai_save_mappings = ' . (isset($_POST['wpai_save_mappings']) ? 'SET' : 'NOT SET'));
-        error_log('WPAI MAPPING PAGE: nonce = ' . ($_POST['wpai_mapping_nonce'] ?? 'NOT SET'));
-        
         if (isset($_POST['wpai_save_mappings'])) {
             if (wp_verify_nonce($_POST['wpai_mapping_nonce'] ?? '', 'wpai_save_mapping')) {
-                error_log('WPAI MAPPING PAGE: Nonce válido, salvando...');
-                $this->save_mappings_from_form();
+                $saved_pt = $this->save_mappings_from_form();
+                if ($saved_pt) {
+                    wp_redirect(admin_url('admin.php?page=wpai-field-mapping&cpt=' . $saved_pt . '&saved=1'));
+                    exit;
+                }
             } else {
-                error_log('WPAI MAPPING PAGE: ERRO - Nonce inválido!');
                 add_settings_error('wpai_mapping', 'nonce_error', 'Erro de segurança. Recarregue a página.', 'error');
             }
+        }
+        
+        // Mostra mensagem de sucesso após redirect
+        if (isset($_GET['saved']) && $_GET['saved'] == '1') {
+            add_settings_error('wpai_mapping', 'saved', 'Mapeamento salvo com sucesso!', 'success');
         }
 
         ?>
@@ -212,19 +215,11 @@ class WPAI_Admin
     // Salva mapeamentos do formulário
     private function save_mappings_from_form()
     {
-        error_log('WPAI MAPPING: save_mappings_from_form() iniciado');
-        error_log('WPAI MAPPING: POST = ' . print_r($_POST, true));
-        
         $post_type = sanitize_key($_POST['wpai_post_type'] ?? '');
         $mappings_raw = isset($_POST['mapping']) ? $_POST['mapping'] : [];
 
-        error_log('WPAI MAPPING: post_type = ' . $post_type);
-        error_log('WPAI MAPPING: mappings_raw = ' . print_r($mappings_raw, true));
-
         if (empty($post_type)) {
-            error_log('WPAI MAPPING: ERRO - Post type vazio');
-            add_settings_error('wpai_mapping', 'invalid_pt', 'Post type inválido.', 'error');
-            return;
+            return false;
         }
 
         $sanitized_mappings = [];
@@ -240,21 +235,15 @@ class WPAI_Admin
             }
         }
 
-        error_log('WPAI MAPPING: sanitized_mappings = ' . print_r($sanitized_mappings, true));
-
         $settings = get_option('wpai_post_gen_settings', []);
-        error_log('WPAI MAPPING: settings ANTES = ' . print_r($settings, true));
-        
         if (!isset($settings['field_mappings'])) {
             $settings['field_mappings'] = [];
         }
         $settings['field_mappings'][$post_type] = $sanitized_mappings;
         
-        $result = update_option('wpai_post_gen_settings', $settings);
-        error_log('WPAI MAPPING: update_option result = ' . ($result ? 'true' : 'false'));
-        error_log('WPAI MAPPING: settings DEPOIS = ' . print_r(get_option('wpai_post_gen_settings'), true));
+        update_option('wpai_post_gen_settings', $settings);
 
-        add_settings_error('wpai_mapping', 'saved', 'Mapeamento salvo com sucesso!', 'success');
+        return $post_type;
     }
 
     public function enqueue_scripts($hook)
