@@ -231,6 +231,9 @@ class WPAI_Admin
     // Salva mapeamentos do formulário
     private function save_mappings_from_form()
     {
+        // Debug completo do POST
+        error_log('WPAI SAVE: POST completo = ' . print_r($_POST, true));
+        
         $post_type = sanitize_key($_POST['wpai_post_type'] ?? '');
         $mappings_raw = isset($_POST['mapping']) ? $_POST['mapping'] : [];
 
