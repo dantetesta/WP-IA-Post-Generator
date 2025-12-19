@@ -128,14 +128,6 @@ class WPAI_Admin
                     $fields = $this->scan_post_type_fields($post_type);
                     $mappings = $this->get_field_mappings($post_type);
                     $generated_fields = $this->get_generated_fields();
-                    
-                    // DEBUG: Mostra mapeamentos carregados
-                    $debug_all = get_option('wpai_field_mappings', []);
-                    echo '<div class="notice notice-info" style="margin: 10px 0; padding: 10px;">';
-                    echo '<strong>DEBUG - Mapeamentos para "' . esc_html($post_type) . '":</strong>';
-                    echo '<pre>' . esc_html(print_r($mappings, true)) . '</pre>';
-                    echo '<small>Option wpai_field_mappings: ' . esc_html(print_r($debug_all, true)) . '</small>';
-                    echo '</div>';
                 ?>
                     <div class="wpai-mapping-form" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 20px;">
                         <h2 style="margin-top: 0;">
