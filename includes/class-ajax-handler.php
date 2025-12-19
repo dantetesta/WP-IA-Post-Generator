@@ -116,23 +116,15 @@ class WPAI_Ajax_Handler
             }
         }
 
-        error_log('WPAI: mappings sanitizados = ' . print_r($sanitized_mappings, true));
-
-        // Salva nas configurações
-        $settings = get_option('wpai_post_gen_settings', []);
-        if (!isset($settings['field_mappings'])) {
-            $settings['field_mappings'] = [];
-        }
-        $settings['field_mappings'][$post_type] = $sanitized_mappings;
-        
-        $saved = update_option('wpai_post_gen_settings', $settings);
-        error_log('WPAI: update_option resultado = ' . ($saved ? 'true' : 'false'));
+        // Salva na option separada de mapeamentos
+        $all_mappings = get_option('wpai_field_mappings', []);
+        $all_mappings[$post_type] = $sanitized_mappings;
+        update_option('wpai_field_mappings', $all_mappings);
 
         wp_send_json_success([
             'message' => __('Mapeamentos salvos com sucesso!', 'wp-ai-post-generator'),
             'mappings' => $sanitized_mappings,
-            'post_type' => $post_type,
-            'saved' => $saved
+            'post_type' => $post_type
         ]);
     }
 
@@ -274,8 +266,9 @@ class WPAI_Ajax_Handler
             $post_type = 'post';
         }
 
-        // Carregar mapeamentos de campos para este post type
-        $field_mappings = $settings['field_mappings'][$post_type] ?? [];
+        // Carregar mapeamentos de campos para este post type (usa option separada)
+        $all_mappings = get_option('wpai_field_mappings', []);
+        $field_mappings = $all_mappings[$post_type] ?? [];
 
         // Preparar dados gerados pela IA
         $generated_data = [
