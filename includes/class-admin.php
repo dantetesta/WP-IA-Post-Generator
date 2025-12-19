@@ -846,27 +846,23 @@ class WPAI_Admin
                             <label class="wpai-label-main"><?php esc_html_e('Tipos de Conteúdo', 'wp-ai-post-generator'); ?></label>
                             <p class="wpai-field-desc">O botão "Criar com IA" aparecerá na listagem dos post types selecionados abaixo. Clique em ⚙️ para mapear campos.</p>
                             
-                            <div class="wpai-post-types-grid">
+                            <div class="wpai-post-types-list">
                                 <?php foreach ($available_post_types as $pt_slug => $pt_label): ?>
-                                    <div class="wpai-post-type-item-wrapper">
-                                        <label class="wpai-post-type-item">
+                                    <div class="wpai-pt-row <?php echo in_array($pt_slug, $enabled_post_types) ? 'active' : ''; ?>">
+                                        <label class="wpai-pt-toggle">
                                             <input type="checkbox" 
                                                    name="wpai_post_gen_settings[enabled_post_types][]" 
                                                    value="<?php echo esc_attr($pt_slug); ?>"
-                                                   <?php checked(in_array($pt_slug, $enabled_post_types)); ?>
-                                                   data-pt="<?php echo esc_attr($pt_slug); ?>">
-                                            <span class="wpai-pt-checkbox">
-                                                <span class="dashicons dashicons-yes"></span>
-                                            </span>
-                                            <span class="wpai-pt-info">
-                                                <span class="wpai-pt-label"><?php echo esc_html($pt_label); ?></span>
-                                                <span class="wpai-pt-slug"><?php echo esc_html($pt_slug); ?></span>
-                                            </span>
+                                                   <?php checked(in_array($pt_slug, $enabled_post_types)); ?>>
+                                            <span class="wpai-pt-switch"></span>
                                         </label>
+                                        <div class="wpai-pt-name">
+                                            <strong><?php echo esc_html($pt_label); ?></strong>
+                                            <code><?php echo esc_html($pt_slug); ?></code>
+                                        </div>
                                         <a href="<?php echo admin_url('admin.php?page=wpai-field-mapping&cpt=' . $pt_slug); ?>" 
-                                           class="wpai-pt-config-btn"
-                                           title="Configurar mapeamento de campos">
-                                            <span class="dashicons dashicons-admin-generic"></span>
+                                           class="wpai-pt-map-btn" title="Mapear campos">
+                                            <span class="dashicons dashicons-admin-generic"></span> Mapear
                                         </a>
                                     </div>
                                 <?php endforeach; ?>

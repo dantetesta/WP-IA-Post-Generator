@@ -937,140 +937,126 @@
     line-height: 1.5;
 }
 
-.wpai-post-types-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 16px;
-}
-
-/* Post Type Item Wrapper com botão de config */
-.wpai-post-type-item-wrapper {
+/* Post Types - Lista Simples */
+.wpai-post-types-list {
     display: flex;
-    align-items: stretch;
-    gap: 0;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    transition: all 0.2s ease;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 600px;
 }
 
-.wpai-post-type-item-wrapper:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    transform: translateY(-2px);
-}
-
-.wpai-post-type-item {
+.wpai-pt-row {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 16px 18px;
+    gap: 16px;
+    padding: 12px 16px;
     background: #fff;
     border: 1px solid #e5e7eb;
-    border-right: none;
-    cursor: pointer;
+    border-radius: 8px;
     transition: all 0.2s ease;
-    flex: 1;
 }
 
-.wpai-post-type-item-wrapper .wpai-post-type-item {
-    border-radius: 0;
+.wpai-pt-row:hover {
+    border-color: #c7d2fe;
+    background: #fafaff;
 }
 
-.wpai-post-type-item:hover {
-    background: #fafafa;
+.wpai-pt-row.active {
+    border-color: #a5b4fc;
+    background: #eef2ff;
 }
 
-.wpai-post-type-item input[type="checkbox"] {
+/* Toggle Switch */
+.wpai-pt-toggle {
+    position: relative;
+    cursor: pointer;
+}
+
+.wpai-pt-toggle input {
     display: none;
 }
 
-.wpai-pt-checkbox {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
+.wpai-pt-switch {
+    display: block;
+    width: 44px;
     height: 24px;
-    background: #f3f4f6;
-    border: 2px solid #d1d5db;
-    border-radius: 6px;
-    flex-shrink: 0;
+    background: #d1d5db;
+    border-radius: 12px;
+    position: relative;
     transition: all 0.2s ease;
 }
 
-.wpai-pt-checkbox .dashicons {
+.wpai-pt-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.wpai-pt-toggle input:checked + .wpai-pt-switch {
+    background: #6366f1;
+}
+
+.wpai-pt-toggle input:checked + .wpai-pt-switch::after {
+    left: 22px;
+}
+
+/* Nome do Post Type */
+.wpai-pt-name {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wpai-pt-name strong {
+    font-size: 14px;
+    color: #1f2937;
+}
+
+.wpai-pt-name code {
+    font-size: 11px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* Botão Mapear */
+.wpai-pt-map-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6366f1;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.wpai-pt-map-btn:hover {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: #fff;
+}
+
+.wpai-pt-map-btn .dashicons {
     font-size: 14px;
     width: 14px;
     height: 14px;
-    color: transparent;
-    transition: all 0.15s ease;
 }
 
-.wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    border-color: #4f46e5;
-    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
-}
-
-.wpai-post-type-item input[type="checkbox"]:checked + .wpai-pt-checkbox .dashicons {
-    color: #fff;
-}
-
-.wpai-pt-info {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    overflow: hidden;
-    flex: 1;
-}
-
-.wpai-pt-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #1f2937;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.wpai-pt-slug {
-    font-size: 11px;
-    color: #9ca3af;
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-    background: #f3f4f6;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
-    width: fit-content;
-}
-
-.wpai-pt-config-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: #9ca3af;
-    text-decoration: none;
-}
-
-.wpai-pt-config-btn:hover {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-    border-color: #4f46e5;
-    color: #fff;
-}
-
-.wpai-pt-config-btn .dashicons {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-}
-
-/* Header laranja para Post Types - mais suave */
+/* Header laranja para Post Types */
 .wpai-panel-header.orange {
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
     border-bottom: 1px solid #fcd34d;
@@ -1084,13 +1070,25 @@
     color: #b45309;
 }
 
+/* Responsivo Post Types */
 @media (max-width: 600px) {
-    .wpai-post-types-grid {
-        grid-template-columns: 1fr;
+    .wpai-pt-row {
+        flex-wrap: wrap;
+        gap: 12px;
     }
     
-    .wpai-post-type-item {
-        padding: 14px 16px;
+    .wpai-pt-name {
+        flex: 100%;
+        order: 1;
+    }
+    
+    .wpai-pt-toggle {
+        order: 0;
+    }
+    
+    .wpai-pt-map-btn {
+        order: 2;
+        margin-left: auto;
     }
 }
 
