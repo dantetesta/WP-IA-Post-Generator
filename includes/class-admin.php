@@ -20,7 +20,30 @@ class WPAI_Admin
         add_action('admin_menu', [$this, 'add_menu_page']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_init', [$this, 'handle_mapping_form_submit']);
         add_action('admin_footer', [$this, 'add_generate_button_footer']);
+    }
+
+    // Processa o formulário de mapeamento antes dos headers
+    public function handle_mapping_form_submit()
+    {
+        if (!isset($_POST['wpai_save_mappings'])) {
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (!wp_verify_nonce($_POST['wpai_mapping_nonce'] ?? '', 'wpai_save_mapping')) {
+            return;
+        }
+
+        $saved_pt = $this->save_mappings_from_form();
+        if ($saved_pt) {
+            wp_redirect(admin_url('admin.php?page=wpai-field-mapping&cpt=' . $saved_pt . '&saved=1'));
+            exit;
+        }
     }
 
     // Adiciona botão no footer de todas as páginas de listagem de post types
@@ -66,19 +89,6 @@ class WPAI_Admin
         $post_type = isset($_GET['cpt']) ? sanitize_key($_GET['cpt']) : '';
         $enabled_post_types = $this->get_enabled_post_types();
 
-        // Processa salvamento do formulário
-        if (isset($_POST['wpai_save_mappings'])) {
-            if (wp_verify_nonce($_POST['wpai_mapping_nonce'] ?? '', 'wpai_save_mapping')) {
-                $saved_pt = $this->save_mappings_from_form();
-                if ($saved_pt) {
-                    wp_redirect(admin_url('admin.php?page=wpai-field-mapping&cpt=' . $saved_pt . '&saved=1'));
-                    exit;
-                }
-            } else {
-                add_settings_error('wpai_mapping', 'nonce_error', 'Erro de segurança. Recarregue a página.', 'error');
-            }
-        }
-        
         // Mostra mensagem de sucesso após redirect
         if (isset($_GET['saved']) && $_GET['saved'] == '1') {
             add_settings_error('wpai_mapping', 'saved', 'Mapeamento salvo com sucesso!', 'success');
