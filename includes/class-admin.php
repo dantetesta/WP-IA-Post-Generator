@@ -128,6 +128,11 @@ class WPAI_Admin
                     $fields = $this->scan_post_type_fields($post_type);
                     $mappings = $this->get_field_mappings($post_type);
                     $generated_fields = $this->get_generated_fields();
+                    
+                    // DEBUG: Mostra mapeamentos carregados
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        echo '<div class="notice notice-info" style="margin: 10px 0; padding: 10px;"><strong>DEBUG - Mapeamentos carregados:</strong><pre>' . print_r($mappings, true) . '</pre></div>';
+                    }
                 ?>
                     <div class="wpai-mapping-form" style="background: #fff; border: 1px solid #ccd0d4; border-radius: 4px; padding: 20px;">
                         <h2 style="margin-top: 0;">
@@ -228,6 +233,9 @@ class WPAI_Admin
         $post_type = sanitize_key($_POST['wpai_post_type'] ?? '');
         $mappings_raw = isset($_POST['mapping']) ? $_POST['mapping'] : [];
 
+        error_log('WPAI SAVE: post_type = ' . $post_type);
+        error_log('WPAI SAVE: mappings_raw = ' . print_r($mappings_raw, true));
+
         if (empty($post_type)) {
             return false;
         }
@@ -245,13 +253,17 @@ class WPAI_Admin
             }
         }
 
+        error_log('WPAI SAVE: sanitized_mappings = ' . print_r($sanitized_mappings, true));
+
         $settings = get_option('wpai_post_gen_settings', []);
         if (!isset($settings['field_mappings'])) {
             $settings['field_mappings'] = [];
         }
         $settings['field_mappings'][$post_type] = $sanitized_mappings;
         
-        update_option('wpai_post_gen_settings', $settings);
+        $result = update_option('wpai_post_gen_settings', $settings);
+        error_log('WPAI SAVE: update_option result = ' . ($result ? 'true' : 'false'));
+        error_log('WPAI SAVE: settings after = ' . print_r(get_option('wpai_post_gen_settings'), true));
 
         return $post_type;
     }
