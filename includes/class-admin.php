@@ -690,7 +690,9 @@ class WPAI_Admin
     public function get_field_mappings($post_type)
     {
         $settings = get_option('wpai_post_gen_settings', []);
+        error_log('WPAI GET: settings[field_mappings] = ' . print_r($settings['field_mappings'] ?? 'NAO EXISTE', true));
         $mappings = $settings['field_mappings'] ?? [];
+        error_log('WPAI GET: mappings[' . $post_type . '] = ' . print_r($mappings[$post_type] ?? 'NAO EXISTE', true));
         return $mappings[$post_type] ?? [];
     }
 
